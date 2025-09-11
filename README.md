@@ -5,16 +5,16 @@
 
 Automatizovaný nástroj pro synchronizaci inventáře mezi Tulipa serverem a Shopify obchodem. Inteligentní cache systém, automatické nastavování sledování inventáře a pokročilé error handling.
 
-## ✨ Klíčové funkce
+## Klíčové funkce
 
-- 🔄 **Automatická synchronizace** - Inventář se synchronizuje mezi Tulipa a Shopify
-- 💾 **Inteligentní cache** - Rychlé načítání dat s automatickým stárnutím
-- 🏪 **Shopify integrace** - Plná podpora GraphQL API s optimalizovanými dotazy
-- 📊 **Detailní reporting** - Kompletní zprávy o provedených změnách
-- 🛡️ **Error handling** - Robustní zpracování chyb s automatickým opakováním
-- 🔧 **Flexibilní konfigurace** - Různé režimy spuštění a filtrování
+- **Automatická synchronizace** - Inventář se synchronizuje mezi Tulipa a Shopify
+- **Inteligentní cache** - Rychlé načítání dat s automatickým stárnutím
+- **Shopify integrace** - Plná podpora GraphQL API s optimalizovanými dotazy
+- **Detailní reporting** - Kompletní zprávy o provedených změnách
+- **Error handling** - Robustní zpracování chyb s automatickým opakováním
+- **Flexibilní konfigurace** - Různé režimy spuštění a filtrování
 
-## 🚀 Rychlý start
+## Rychlý start
 
 ### 1. Instalace
 
@@ -63,7 +63,7 @@ python tulipa_offers_scraper.py --modify --dry-run
 python tulipa_offers_scraper.py --reset
 ```
 
-## 📋 Dostupné možnosti
+## Dostupné možnosti
 
 - `--scrape-only` - Pouze stáhni data a ulož do CSV
 - `--shopify-only` - Pouze synchronizuj se Shopify (přeskoč stahování)
@@ -76,7 +76,7 @@ python tulipa_offers_scraper.py --reset
 - `--reset` - Resetovat session a začít znovu
 - `--discover` - Objevit dostupné kategorie
 
-## 📊 Co skript dělá
+## Co skript dělá
 
 1. **Inteligentní cache** - Automaticky ukládá data s časovým razítkem
 2. **Stahování dat** - Připojí se k Tulipa serveru a stáhne produktová data
@@ -85,13 +85,13 @@ python tulipa_offers_scraper.py --reset
 5. **Analýza rozdílů** - Porovná data z Tulipa s inventářem v Shopify
 6. **Synchronizace** - Aktualizuje inventář v Shopify podle dat z Tulipa
 
-### 🗂️ Cache systém
+### Cache systém
 - **Automatické pojmenování**: Soubory se ukládají s datem (`produkty_komplet_20250911_175247.csv`)
 - **Inteligentní cache**: Pokud je soubor novější než 1 hodina, použije se cache
 - **Automatické čištění**: Staré soubory (starší než 24 hodin) se automaticky mažou
 - **Rychlé spuštění**: Při opakovaném spuštění se data načtou z cache místo stahování
 
-## ⚙️ Konfigurace
+## Konfigurace
 
 Hlavní skupiny k zpracování můžete upravit přímo v souboru `tulipa_offers_scraper.py`:
 
@@ -101,7 +101,7 @@ HLAVNI_SKUPINY = [
 ]
 ```
 
-## 📁 Výstupní soubory
+## Výstupní soubory
 
 Všechny výstupní soubory se ukládají do složky `data/`:
 
@@ -109,7 +109,7 @@ Všechny výstupní soubory se ukládají do složky `data/`:
 - `data/tulipa_session.json` - Session token pro připojení k Tulipa serveru
 - `data/modification_report_YYYYMMDD_HHMMSS.json` - Detailní zprávy o provedených změnách v Shopify
 
-## 🔧 Řešení problémů
+## Řešení problémů
 
 ### Chyby připojení
 ```bash
@@ -130,7 +130,7 @@ python tulipa_offers_scraper.py --discover
 python tulipa_offers_scraper.py --debug
 ```
 
-## 🔍 Cache systém
+## Cache systém
 
 ### Automatické řízení cache
 - **Časové razítko**: Soubory se pojmenovávají podle data vytvoření
@@ -147,7 +147,7 @@ rm -rf data/produkty_komplet_*.csv
 du -sh data/
 ```
 
-## 📝 Technické detaily
+## Technické detaily
 
 ### Optimalizace výkonu
 - **GraphQL dotazy**: Optimalizované pro minimální náklady na API
@@ -160,7 +160,7 @@ du -sh data/
 - **Session management**: Bezpečné ukládání a obnovování session tokenů
 - **Error logging**: Detailní logování bez vystavování citlivých dat
 
-## 📝 Poznámky
+## Poznámky
 
 - Skript automaticky odečítá 5 kusů od množství z Tulipa pro jistotu
 - Session token se ukládá a automaticky obnovuje
@@ -168,10 +168,10 @@ du -sh data/
 - V dry-run režimu se žádné změny neprovedou
 - Automatické nastavování sledování inventáře v Shopify
 
-## 📄 Licence
+## Licence
 
 Tento projekt je licencován pod MIT licencí - viz [LICENSE](LICENSE) soubor pro detaily.
 
 ---
 
-**⚠️ Bezpečnostní upozornění**: Tento nástroj pracuje s citlivými daty a API přihlašovacími údaji. Ujistěte se, že dodržujete správné bezpečnostní postupy a nikdy necommitnete `.env` soubor do Git repository.
+**Bezpečnostní upozornění**: Tento nástroj pracuje s citlivými daty a API přihlašovacími údaji. Ujistěte se, že dodržujete správné bezpečnostní postupy a nikdy necommitnete `.env` soubor do Git repository.
