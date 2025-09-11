@@ -1,6 +1,18 @@
 # Tulipa Offers Scraper
 
-Jednoduchý nástroj pro stahování dat z Tulipa serveru a synchronizaci inventáře se Shopify.
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+
+Automatizovaný nástroj pro synchronizaci inventáře mezi Tulipa serverem a Shopify obchodem. Inteligentní cache systém, automatické nastavování sledování inventáře a pokročilé error handling.
+
+## ✨ Klíčové funkce
+
+- 🔄 **Automatická synchronizace** - Inventář se synchronizuje mezi Tulipa a Shopify
+- 💾 **Inteligentní cache** - Rychlé načítání dat s automatickým stárnutím
+- 🏪 **Shopify integrace** - Plná podpora GraphQL API s optimalizovanými dotazy
+- 📊 **Detailní reporting** - Kompletní zprávy o provedených změnách
+- 🛡️ **Error handling** - Robustní zpracování chyb s automatickým opakováním
+- 🔧 **Flexibilní konfigurace** - Různé režimy spuštění a filtrování
 
 ## 🚀 Rychlý start
 
@@ -91,9 +103,11 @@ HLAVNI_SKUPINY = [
 
 ## 📁 Výstupní soubory
 
+Všechny výstupní soubory se ukládají do složky `data/`:
+
 - `data/produkty_komplet_YYYYMMDD_HHMMSS.csv` - Stáhnutá data z Tulipa s časovým razítkem
-- `tulipa_session.json` - Session token pro připojení
-- `modification_report_*.json` - Zprávy o provedených změnách
+- `data/tulipa_session.json` - Session token pro připojení k Tulipa serveru
+- `data/modification_report_YYYYMMDD_HHMMSS.json` - Detailní zprávy o provedených změnách v Shopify
 
 ## 🔧 Řešení problémů
 
@@ -116,13 +130,48 @@ python tulipa_offers_scraper.py --discover
 python tulipa_offers_scraper.py --debug
 ```
 
+## 🔍 Cache systém
+
+### Automatické řízení cache
+- **Časové razítko**: Soubory se pojmenovávají podle data vytvoření
+- **1-hodinová platnost**: Cache se použije, pokud je soubor novější než 1 hodina
+- **Automatické čištění**: Soubory starší než 24 hodin se automaticky mažou
+- **Inteligentní načítání**: Systém automaticky najde nejnovější platný cache soubor
+
+### Manuální správa cache
+```bash
+# Vymazat všechny cache soubory
+rm -rf data/produkty_komplet_*.csv
+
+# Zobrazit velikost cache
+du -sh data/
+```
+
+## 📝 Technické detaily
+
+### Optimalizace výkonu
+- **GraphQL dotazy**: Optimalizované pro minimální náklady na API
+- **Batch processing**: Zpracování po dávkách pro lepší výkon
+- **Retry mechanismus**: Automatické opakování při selhání
+- **Rate limiting**: Respektování limitů Shopify API
+
+### Bezpečnost
+- **Environment variables**: Citlivé údaje v `.env` souboru
+- **Session management**: Bezpečné ukládání a obnovování session tokenů
+- **Error logging**: Detailní logování bez vystavování citlivých dat
+
 ## 📝 Poznámky
 
 - Skript automaticky odečítá 5 kusů od množství z Tulipa pro jistotu
 - Session token se ukládá a automaticky obnovuje
-- Všechny změny se logují do konzole
+- Všechny změny se logují do konzole s časovým razítkem
 - V dry-run režimu se žádné změny neprovedou
+- Automatické nastavování sledování inventáře v Shopify
+
+## 📄 Licence
+
+Tento projekt je licencován pod MIT licencí - viz [LICENSE](LICENSE) soubor pro detaily.
 
 ---
 
-**Poznámka**: Tento nástroj pracuje s citlivými daty a API přihlašovacími údaji. Ujistěte se, že dodržujete správné bezpečnostní postupy.
+**⚠️ Bezpečnostní upozornění**: Tento nástroj pracuje s citlivými daty a API přihlašovacími údaji. Ujistěte se, že dodržujete správné bezpečnostní postupy a nikdy necommitnete `.env` soubor do Git repository.
