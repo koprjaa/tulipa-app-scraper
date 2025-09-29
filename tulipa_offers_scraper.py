@@ -14,7 +14,7 @@ Použití:
 Možnosti:
     --scrape-only          Pouze stáhni data a ulož do CSV
     --shopify-only         Pouze synchronizuj se Shopify (přeskoč stahování)
-    --modify               Povolit úpravu produktů
+    --show-changes         Zobrazit pouze změny v inventáři bez úprav
     --dry-run              Zobrazit co by se změnilo bez provedení změn
     --limit N              Omezit počet produktů k zpracování
     --filter-group GROUP   Filtrovat podle hlavní skupiny (např. "Dekor", "Kveto")
@@ -22,6 +22,7 @@ Možnosti:
     --debug                Zapnout debug režim
     --reset                Resetovat session a začít znovu
     --discover             Objevit dostupné kategorie
+    --loop                 Spouštět v nekonečné smyčce každých 30 minut
 """
 
 import requests
@@ -638,7 +639,7 @@ def update_shopify_inventory(inventory_level_id, quantity, dry_run=False):
     }
     """
     
-    # Extrahování inventory item ID
+    # Extrahování inventory item ID a location ID z inventory level ID
     if "?" in inventory_level_id:
         query_part = inventory_level_id.split("?")[1]
         if "inventory_item_id=" in query_part:
@@ -885,7 +886,15 @@ def analyze_differences(csv_products, shopify_products, logger=None):
                         inventory_levels = inventory_item.get("inventoryLevels", {}).get("edges", [])
                         for level_edge in inventory_levels:
                             level = level_edge["node"]
-                            shopify_inventory += level.get("available", 0)
+                            # Nový formát Shopify API - quantities array
+                            quantities = level.get("quantities", [])
+                            for qty in quantities:
+                                if qty.get("name") == "available":
+                                    shopify_inventory += qty.get("quantity", 0)
+                                    break
+                            # Fallback pro starý formát
+                            if not quantities:
+                                shopify_inventory += level.get("available", 0)
                 csv_inventory = int(csv_product.get('Mnozstvi', 0))
                 
                 # Odečíst 5 kusů od Tulipa množství pro jistotu
@@ -938,6 +947,45 @@ def analyze_differences(csv_products, shopify_products, logger=None):
         logger.info(f"Rozdíly v inventáři: {analysis['inventory_differences']}")
     
     return analysis
+
+
+def display_inventory_changes(analysis, logger=None):
+    """Zobrazí jednotlivé změny v inventáři rostlin."""
+    if not analysis.get('details'):
+        if logger:
+            logger.info("Žádné rozdíly v inventáři nebyly nalezeny.")
+        return
+    
+    if logger:
+        logger.info("=== ZMĚNĚNÉ ROSTLINY ===")
+        logger.info(f"{'SKU':<10} {'RegCis':<10} {'Název':<40} {'Shopify':<8} {'CSV':<8} {'Upravené':<10} {'Rozdíl':<8}")
+        logger.info("-" * 100)
+        
+        for item in analysis['details']:
+            sku = item['sku']
+            regcis = item['regcis']
+            title = item['title'][:37] + "..." if len(item['title']) > 40 else item['title']
+            shopify_qty = item['shopify']
+            csv_qty = item['csv']
+            adjusted_csv = item['adjusted_csv']
+            difference = item['difference']
+            
+            logger.info(f"{sku:<10} {regcis:<10} {title:<40} {shopify_qty:<8} {csv_qty:<8} {adjusted_csv:<10} {difference:<8}")
+    else:
+        print("=== ZMĚNĚNÉ ROSTLINY ===")
+        print(f"{'SKU':<10} {'RegCis':<10} {'Název':<40} {'Shopify':<8} {'CSV':<8} {'Upravené':<10} {'Rozdíl':<8}")
+        print("-" * 100)
+        
+        for item in analysis['details']:
+            sku = item['sku']
+            regcis = item['regcis']
+            title = item['title'][:37] + "..." if len(item['title']) > 40 else item['title']
+            shopify_qty = item['shopify']
+            csv_qty = item['csv']
+            adjusted_csv = item['adjusted_csv']
+            difference = item['difference']
+            
+            print(f"{sku:<10} {regcis:<10} {title:<40} {shopify_qty:<8} {csv_qty:<8} {adjusted_csv:<10} {difference:<8}")
 
 
 def modify_products(analysis, shopify_products, dry_run, logger=None):
@@ -995,23 +1043,32 @@ def modify_products(analysis, shopify_products, dry_run, logger=None):
                     
                     for level_edge in inventory_levels:
                         level = level_edge["node"]
-                        current_qty = level.get("available", 0)
+                        # Nový formát Shopify API - quantities array
+                        quantities = level.get("quantities", [])
+                        current_qty = 0
+                        for qty in quantities:
+                            if qty.get("name") == "available":
+                                current_qty = qty.get("quantity", 0)
+                                break
+                        # Fallback pro starý formát
+                        if not quantities:
+                            current_qty = level.get("available", 0)
+                        
                         if current_qty == desired_qty:
                             continue
                         
-                        delta = desired_qty - current_qty
                         if dry_run:
                             if logger:
-                                logger.info(f"[dry-run] Upravil by {level['id']} o {delta} (aktuální: {current_qty} -> požadované: {desired_qty})")
+                                logger.info(f"[dry-run] Nastavil by {level['id']} na {desired_qty} (aktuální: {current_qty})")
                             else:
-                                print(f"[dry-run] Upravil by {level['id']} o {delta} (aktuální: {current_qty} -> požadované: {desired_qty})")
+                                print(f"[dry-run] Nastavil by {level['id']} na {desired_qty} (aktuální: {current_qty})")
                         else:
                             try:
-                                update_shopify_inventory(level["id"], delta)
+                                update_shopify_inventory(level["id"], desired_qty)
                                 if logger:
-                                    logger.info(f"Aktualizován inventář {level['id']} o {delta}")
+                                    logger.info(f"Aktualizován inventář {level['id']} na {desired_qty}")
                                 else:
-                                    print(f"Aktualizován inventář {level['id']} o {delta}")
+                                    print(f"Aktualizován inventář {level['id']} na {desired_qty}")
                                 updated_variants += 1
                             except Exception as e:
                                 # Zkontrolujeme, zda je problém s nesledovaným inventářem
@@ -1100,54 +1157,8 @@ def setup_logging(level="INFO"):
     return logger
 
 
-def main():
-    """Hlavní funkce."""
-    # Vypnutí SSL varování pro Tulipa server
-    requests.packages.urllib3.disable_warnings(requests.packages.urllib3.exceptions.InsecureRequestWarning)
-    
-    parser = argparse.ArgumentParser(description="Tulipa Offers Scraper")
-    parser.add_argument("--scrape-only", action="store_true", help="Pouze stáhni data a ulož do CSV")
-    parser.add_argument("--shopify-only", action="store_true", help="Pouze synchronizuj se Shopify (přeskoč stahování)")
-    parser.add_argument("--modify", action="store_true", help="Povolit úpravu produktů")
-    parser.add_argument("--dry-run", action="store_true", help="Zobrazit co by se změnilo bez provedení změn")
-    parser.add_argument("--limit", type=int, help="Omezit počet produktů k zpracování")
-    parser.add_argument("--filter-group", help="Filtrovat podle hlavní skupiny (např. 'Dekor', 'Kveto')")
-    parser.add_argument("--output", default="produkty_komplet.csv", help="Výstupní CSV soubor")
-    parser.add_argument("--debug", action="store_true", help="Zapnout debug režim")
-    parser.add_argument("--reset", action="store_true", help="Resetovat session a začít znovu")
-    parser.add_argument("--discover", action="store_true", help="Objevit dostupné kategorie")
-    parser.add_argument("--log-level", default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR"], help="Úroveň logování")
-    
-    args = parser.parse_args()
-    
-    # Nastavení debug režimu
-    global DEBUG_MODE
-    if args.debug:
-        DEBUG_MODE = True
-    
-    # Nastavení logování
-    logger = setup_logging(args.log_level)
-    
-    # Zpracování speciálních režimů
-    if args.reset:
-        print("🔄 RESET SESSION REŽIM")
-        print("=" * 50)
-        force_logout_all(logger)
-        print("\nNyní spusťte skript bez argumentů pro normální běh.")
-        return 0
-    
-    if args.discover:
-        print("🔍 OBJEVOVÁNÍ KATEGORIÍ REŽIM")
-        print("=" * 50)
-        print("Tento režim objeví dostupné kategorie pro pozdější použití.")
-        print("Spusťte skript bez argumentů pro normální běh.")
-        return 0
-    
-    logger.info("Spouštím Tulipa Offers Scraper")
-    
-    # Vytvoříme data složku pokud neexistuje
-    os.makedirs("data", exist_ok=True)
-    
+def run_main_workflow(args, logger):
+    """Spustí hlavní workflow bez loop logiky."""
     try:
         # Fáze 1: Stahování nebo načtení z cache
         csv_products = []
@@ -1197,8 +1208,16 @@ def main():
             # Fáze 4: Analýza rozdílů
             analysis = analyze_differences(csv_products, shopify_products, logger)
             
-            # Fáze 5: Úprava produktů (pokud je povolena)
-            if args.modify:
+            # Zobrazení jednotlivých změněných rostlin
+            display_inventory_changes(analysis, logger)
+            
+            # Pokud je požadováno pouze zobrazení změn, ukončit zde
+            if args.show_changes:
+                logger.info("Zobrazení změn dokončeno.")
+                return 0
+            
+            # Fáze 5: Úprava produktů (vždy, pokud nejsou použity speciální režimy)
+            if not args.show_changes:
                 modification_results = modify_products(analysis, shopify_products, args.dry_run, logger)
                 
                 # Uložení zprávy o úpravách
@@ -1235,6 +1254,107 @@ def main():
     except Exception as e:
         logger.error(f"Workflow selhal s chybou: {e}")
         return 1
+
+
+def main():
+    """Hlavní funkce s podporou loop režimu."""
+    # Vypnutí SSL varování pro Tulipa server
+    requests.packages.urllib3.disable_warnings(requests.packages.urllib3.exceptions.InsecureRequestWarning)
+    
+    parser = argparse.ArgumentParser(description="Tulipa Offers Scraper")
+    parser.add_argument("--scrape-only", action="store_true", help="Pouze stáhni data a ulož do CSV")
+    parser.add_argument("--shopify-only", action="store_true", help="Pouze synchronizuj se Shopify (přeskoč stahování)")
+    parser.add_argument("--show-changes", action="store_true", help="Zobrazit pouze změny v inventáři bez úprav")
+    parser.add_argument("--dry-run", action="store_true", help="Zobrazit co by se změnilo bez provedení změn")
+    parser.add_argument("--limit", type=int, help="Omezit počet produktů k zpracování")
+    parser.add_argument("--filter-group", help="Filtrovat podle hlavní skupiny (např. 'Dekor', 'Kveto')")
+    parser.add_argument("--output", default="produkty_komplet.csv", help="Výstupní CSV soubor")
+    parser.add_argument("--debug", action="store_true", help="Zapnout debug režim")
+    parser.add_argument("--reset", action="store_true", help="Resetovat session a začít znovu")
+    parser.add_argument("--discover", action="store_true", help="Objevit dostupné kategorie")
+    parser.add_argument("--loop", action="store_true", help="Spouštět v nekonečné smyčce každých 30 minut")
+    parser.add_argument("--log-level", default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR"], help="Úroveň logování")
+    
+    args = parser.parse_args()
+    
+    # Nastavení debug režimu
+    global DEBUG_MODE
+    if args.debug:
+        DEBUG_MODE = True
+    
+    # Nastavení logování
+    logger = setup_logging(args.log_level)
+    
+    # Zpracování speciálních režimů
+    if args.reset:
+        print("🔄 RESET SESSION REŽIM")
+        print("=" * 50)
+        force_logout_all(logger)
+        print("\nNyní spusťte skript bez argumentů pro normální běh.")
+        return 0
+    
+    if args.discover:
+        print("🔍 OBJEVOVÁNÍ KATEGORIÍ REŽIM")
+        print("=" * 50)
+        print("Tento režim objeví dostupné kategorie pro pozdější použití.")
+        print("Spusťte skript bez argumentů pro normální běh.")
+        return 0
+    
+    logger.info("Spouštím Tulipa Offers Scraper")
+    
+    # Vytvoříme data složku pokud neexistuje
+    os.makedirs("data", exist_ok=True)
+    
+    # Loop režim - spouštět každých 30 minut
+    if args.loop:
+        logger.info("🔄 LOOP REŽIM - Spouštím každých 30 minut")
+        logger.info("Pro ukončení stiskněte Ctrl+C")
+        print("=" * 60)
+        print("🔄 LOOP REŽIM AKTIVNÍ")
+        print("Skript se bude spouštět každých 30 minut")
+        print("Pro ukončení stiskněte Ctrl+C")
+        print("=" * 60)
+        
+        iteration = 1
+        while True:
+            try:
+                logger.info(f"🔄 ITERACE #{iteration} - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+                print(f"\n{'='*20} ITERACE #{iteration} {'='*20}")
+                print(f"Čas spuštění: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+                print(f"{'='*50}")
+                
+                # Spustíme hlavní workflow
+                result = run_main_workflow(args, logger)
+                
+                if result == 0:
+                    logger.info(f"✅ Iterace #{iteration} dokončena úspěšně")
+                else:
+                    logger.warning(f"⚠️ Iterace #{iteration} dokončena s chybami (kód: {result})")
+                
+                iteration += 1
+                
+                # Počkáme 30 minut před další iterací
+                logger.info("⏰ Čekám 30 minut před další iterací...")
+                print(f"\n⏰ Čekám 30 minut před další iterací...")
+                print("Pro ukončení stiskněte Ctrl+C")
+                
+                # Čekání 30 minut (1800 sekund)
+                time.sleep(1800)
+                
+            except KeyboardInterrupt:
+                logger.info("🛑 Loop režim ukončen uživatelem")
+                print("\n🛑 Loop režim ukončen uživatelem")
+                return 0
+            except Exception as e:
+                logger.error(f"❌ Chyba v iteraci #{iteration}: {e}")
+                print(f"\n❌ Chyba v iteraci #{iteration}: {e}")
+                logger.info("⏰ Čekám 5 minut před opakováním...")
+                print("⏰ Čekám 5 minut před opakováním...")
+                time.sleep(300)  # Čekání 5 minut při chybě
+                continue
+    
+    # Normální běh (bez loop)
+    return run_main_workflow(args, logger)
 
 
 if __name__ == "__main__":
