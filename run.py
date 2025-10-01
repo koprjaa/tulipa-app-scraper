@@ -1418,6 +1418,7 @@ def analyze_differences(csv_products, shopify_products, logger=None):
                     shared_data = shared_inventory[base_regcis]
                     # Pro produkty s více variantami v Shopify použijeme speciální logiku
                     if len(variants) > 1:
+                        # Pro produkty s více variantami použijeme množství z konkrétního RegCis
                         total_csv_qty = int(csv_product.get('Mnozstvi', 0))
                         if is_transparent:
                             # Pro průhledné květináče použijeme druhou polovinu
