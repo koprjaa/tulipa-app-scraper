@@ -1425,11 +1425,11 @@ def analyze_differences(csv_products, shopify_products, logger=None):
                     if len(variants) > 1:
                         total_csv_qty = int(csv_product.get('Mnozstvi', 0))
                         if is_transparent:
-                            # Pro průhledné květináče použijeme 60% inventáře
-                            desired_qty = int(total_csv_qty * 0.6)
+                            # Pro průhledné květináče použijeme druhou polovinu
+                            desired_qty = total_csv_qty // 2
                         else:
-                            # Pro obyčejné květináče použijeme 40% inventáře
-                            desired_qty = int(total_csv_qty * 0.4)
+                            # Pro obyčejné květináče použijeme první polovinu + zbytek
+                            desired_qty = (total_csv_qty // 2) + (total_csv_qty % 2)
                     else:
                         # Pro produkty s jednou variantou použijeme celé množství
                         desired_qty = int(csv_product.get('Mnozstvi', 0))
