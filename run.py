@@ -1423,7 +1423,7 @@ def analyze_differences(csv_products, shopify_products, logger=None):
                 else:
                     # Pro produkty s více variantami rozdělíme inventář podle poměru
                     if len(variants) > 1:
-                        total_csv_qty = csv_product.get('_mnozstvi', 0)
+                        total_csv_qty = int(csv_product.get('Mnozstvi', 0))
                         if is_transparent:
                             # Pro průhledné květináče použijeme 60% inventáře
                             desired_qty = int(total_csv_qty * 0.6)
@@ -1432,7 +1432,7 @@ def analyze_differences(csv_products, shopify_products, logger=None):
                             desired_qty = int(total_csv_qty * 0.4)
                     else:
                         # Pro produkty s jednou variantou použijeme celé množství
-                        desired_qty = csv_product.get('_mnozstvi', 0)
+                        desired_qty = int(csv_product.get('Mnozstvi', 0))
                     
                     # Pro produkty bez sdíleného inventáře použijeme sečtené množství ze skupiny
                     group_key = f"{csv_product.get('Nazev1', '')}_{csv_product.get('HlavniSkupina', '')}"
