@@ -1416,12 +1416,23 @@ def analyze_differences(csv_products, shopify_products, logger=None):
                 # Získáme cílové množství ze sdíleného inventáře
                 if base_regcis in shared_inventory:
                     shared_data = shared_inventory[base_regcis]
-                    if is_transparent:
-                        desired_qty = shared_data['transparent_qty']
+                    # Pro produkty s více variantami v Shopify použijeme speciální logiku
+                    if len(variants) > 1:
+                        total_csv_qty = int(csv_product.get('Mnozstvi', 0))
+                        if is_transparent:
+                            # Pro průhledné květináče použijeme druhou polovinu
+                            desired_qty = total_csv_qty // 2
+                        else:
+                            # Pro obyčejné květináče použijeme první polovinu + zbytek
+                            desired_qty = (total_csv_qty // 2) + (total_csv_qty % 2)
                     else:
-                        desired_qty = shared_data['regular_qty']
+                        # Pro produkty s jednou variantou použijeme sdílený inventář
+                        if is_transparent:
+                            desired_qty = shared_data['transparent_qty']
+                        else:
+                            desired_qty = shared_data['regular_qty']
                 else:
-                    # Pro produkty s více variantami rozdělíme inventář podle poměru
+                    # Pro produkty bez sdíleného inventáře rozdělíme inventář podle poměru
                     if len(variants) > 1:
                         total_csv_qty = int(csv_product.get('Mnozstvi', 0))
                         if is_transparent:
