@@ -1385,77 +1385,82 @@ def analyze_differences(csv_products, shopify_products, logger=None):
                         # Pro produkty s jednou variantou použijeme původní logiku
                         nazev = csv_product.get('Nazev1', '').lower()
                         is_transparent = any(keyword in nazev for keyword in ['průhledný', 'průhledny', 'transparent', 'skleněný', 'skleneny'])
-                
-                # Najdeme základní RegCis pro sdílený inventář
-                # Použijeme RegCis z CSV, ne SKU ze Shopify
-                csv_regcis = csv_product.get('RegCis', '').strip()
-                base_regcis = csv_regcis
-                if is_transparent:
-                    base_regcis = csv_regcis.replace('_pr', '').replace('_transparent', '').replace('_sklo', '')
-                
-                # Kontrola rozdílů v inventáři - čteme z inventory levels pro tuto konkrétní variantu
-                shopify_inventory = 0
-                inventory_item = variant_node.get("inventoryItem")
-                if inventory_item and inventory_item.get("tracked"):
-                    inventory_levels = inventory_item.get("inventoryLevels", {}).get("edges", [])
-                    for level_edge in inventory_levels:
-                        level = level_edge["node"]
-                        # Zkontrolujeme, zda je to správná lokace
-                        location_id = level.get("location", {}).get("id", "")
-                        if location_id == f"gid://shopify/Location/{SHOPIFY_LOCATION_ID}":
-                            # Nový formát Shopify API - quantities array
-                            quantities = level.get("quantities", [])
-                            for qty in quantities:
-                                if qty.get("name") == "available":
-                                    shopify_inventory += qty.get("quantity", 0)
-                                    break
-                            # Fallback pro starý formát
-                            if not quantities:
-                                shopify_inventory += level.get("available", 0)
-                
-                # Získáme cílové množství ze sdíleného inventáře
-                if base_regcis in shared_inventory:
-                    shared_data = shared_inventory[base_regcis]
-                    # Pro produkty s více variantami v Shopify použijeme speciální logiku
-                    if len(variants) > 1:
-                        # Pro produkty s více variantami použijeme množství z konkrétního RegCis
-                        total_csv_qty = int(csv_product.get('Mnozstvi', 0))
-                        if is_transparent:
-                            # Pro průhledné květináče použijeme druhou polovinu
-                            desired_qty = total_csv_qty // 2
-                        else:
-                            # Pro obyčejné květináče použijeme první polovinu + zbytek
-                            desired_qty = (total_csv_qty // 2) + (total_csv_qty % 2)
-                    else:
-                        # Pro produkty s jednou variantou použijeme sdílený inventář
-                        if is_transparent:
-                            desired_qty = shared_data['transparent_qty']
-                        else:
-                            desired_qty = shared_data['regular_qty']
-                else:
-                    # Pro produkty bez sdíleného inventáře rozdělíme inventář podle poměru
-                    if len(variants) > 1:
-                        total_csv_qty = int(csv_product.get('Mnozstvi', 0))
-                        if is_transparent:
-                            # Pro průhledné květináče použijeme druhou polovinu
-                            desired_qty = total_csv_qty // 2
-                        else:
-                            # Pro obyčejné květináče použijeme první polovinu + zbytek
-                            desired_qty = (total_csv_qty // 2) + (total_csv_qty % 2)
-                    else:
-                        # Pro produkty s jednou variantou použijeme celé množství
-                        desired_qty = int(csv_product.get('Mnozstvi', 0))
                     
-                    # Pro produkty bez sdíleného inventáře použijeme sečtené množství ze skupiny
-                    group_key = f"{csv_product.get('Nazev1', '')}_{csv_product.get('HlavniSkupina', '')}"
-                    if group_key in product_groups:
-                        total_group_quantity = product_groups[group_key]['total_quantity']
-                        desired_qty = max(0, total_group_quantity - 5)
+                    # Najdeme základní RegCis pro sdílený inventář
+                    # Použijeme RegCis z CSV, ne SKU ze Shopify
+                    csv_regcis = csv_product.get('RegCis', '').strip()
+                    base_regcis = csv_regcis
+                    if is_transparent:
+                        base_regcis = csv_regcis.replace('_pr', '').replace('_transparent', '').replace('_sklo', '')
+                    
+                    # Kontrola rozdílů v inventáři - čteme z inventory levels pro tuto konkrétní variantu
+                    shopify_inventory = 0
+                    inventory_item = variant_node.get("inventoryItem")
+                    if inventory_item and inventory_item.get("tracked"):
+                        inventory_levels = inventory_item.get("inventoryLevels", {}).get("edges", [])
+                        for level_edge in inventory_levels:
+                            level = level_edge["node"]
+                            # Zkontrolujeme, zda je to správná lokace
+                            location_id = level.get("location", {}).get("id", "")
+                            if location_id == f"gid://shopify/Location/{SHOPIFY_LOCATION_ID}":
+                                # Nový formát Shopify API - quantities array
+                                quantities = level.get("quantities", [])
+                                for qty in quantities:
+                                    if qty.get("name") == "available":
+                                        shopify_inventory += qty.get("quantity", 0)
+                                        break
+                                # Fallback pro starý formát
+                                if not quantities:
+                                    shopify_inventory += level.get("available", 0)
+                    
+                    # Získáme cílové množství ze sdíleného inventáře
+                    if base_regcis in shared_inventory:
+                        shared_data = shared_inventory[base_regcis]
+                        # Pro produkty s více variantami v Shopify použijeme speciální logiku
+                        if len(variants) > 1:
+                            # Pro produkty s více variantami použijeme množství ze sdíleného inventáře
+                            if is_transparent:
+                                # Pro průhledné květináče použijeme množství ze sdíleného inventáře
+                                desired_qty = shared_data['transparent_qty']
+                            else:
+                                # Pro obyčejné květináče použijeme množství ze sdíleného inventáře
+                                desired_qty = shared_data['regular_qty']
+                        else:
+                            # Pro produkty s jednou variantou použijeme sdílený inventář
+                            if is_transparent:
+                                desired_qty = shared_data['transparent_qty']
+                            else:
+                                desired_qty = shared_data['regular_qty']
                     else:
-                        # Fallback na původní logiku
-                        csv_inventory = int(csv_product.get('Mnozstvi', 0))
-                        desired_qty = max(0, csv_inventory - 5)
-                
+                        # Pro produkty bez sdíleného inventáře rozdělíme inventář podle poměru
+                        if len(variants) > 1:
+                            total_csv_qty = int(csv_product.get('Mnozstvi', 0))
+                            if is_transparent:
+                                # Pro průhledné květináče použijeme druhou polovinu
+
+                                desired_qty = total_csv_qty // 2
+                            else:
+                                # Pro obyčejné květináče použijeme první polovinu + zbytek
+                                desired_qty = (total_csv_qty // 2) + (total_csv_qty % 2)
+                        else:
+                            # Pro produkty s jednou variantou použijeme celé množství
+                            desired_qty = int(csv_product.get('Mnozstvi', 0))
+                    
+                        # Pro produkty bez sdíleného inventáře použijeme sečtené množství ze skupiny
+                        group_key = f"{csv_product.get('Nazev1', '')}_{csv_product.get('HlavniSkupina', '')}"
+                        if group_key in product_groups:
+                            total_group_quantity = product_groups[group_key]['total_quantity']
+                            desired_qty = max(0, total_group_quantity - 5)
+                        else:
+                            # Fallback na původní logiku
+                            csv_inventory = int(csv_product.get('Mnozstvi', 0))
+                            desired_qty = max(0, csv_inventory - 5)
+                    
+                    # Debug logging pro detekci rozdílů
+                    product_title = shopify_product.get('title', 'Neznámý produkt')
+                    logger.info(f" Porovnání pro {product_title} (SKU={sku}):")
+                    logger.info(f"   Shopify={shopify_inventory}, Očekáváno={desired_qty}, Rozdíl={desired_qty - shopify_inventory}, is_transparent={is_transparent}")
+                    
                     if shopify_inventory != desired_qty:
                         analysis['inventory_differences'] += 1
                         # Získáme informace o skupině produktů
