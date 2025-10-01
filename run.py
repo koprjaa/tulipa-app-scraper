@@ -1313,8 +1313,8 @@ def analyze_differences(csv_products, shopify_products, logger=None):
         product_groups[group_key]['all_regcis'].append(regcis)
         product_groups[group_key]['total_quantity'] += int(product.get('Mnozstvi', 0))
         
-        # Mapujeme každý RegCis na hlavní produkt ze skupiny
-        csv_mapping[regcis] = product_groups[group_key]['main_product']
+        # Mapujeme každý RegCis na konkrétní produkt (ne na main_product)
+        csv_mapping[regcis] = product
     
     analysis = {
         'total_shopify': len(shopify_products),
