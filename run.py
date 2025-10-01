@@ -1340,22 +1340,17 @@ def analyze_differences(csv_products, shopify_products, logger=None):
                     inventory_item = variant["node"].get("inventoryItem")
                     inventory_qty = 0
                     if inventory_item and inventory_item.get("tracked"):
-                        # Nejdříve zkusíme inventoryQuantity přímo na variantě
-                        inventory_qty = variant["node"].get("inventoryQuantity", 0)
-                        
-                        # Pokud je 0, zkusíme inventoryLevels
-                        if inventory_qty == 0:
-                            inventory_levels = inventory_item.get("inventoryLevels", {}).get("edges", [])
-                            for level_edge in inventory_levels:
-                                level = level_edge["node"]
-                                # Zkontrolujeme, zda je to správná lokace
-                                location_id = level.get("location", {}).get("id", "")
-                                if location_id == f"gid://shopify/Location/{SHOPIFY_LOCATION_ID}":
-                                    quantities = level.get("quantities", [])
-                                    for qty in quantities:
-                                        if qty.get("name") == "available":
-                                            inventory_qty += qty.get("quantity", 0)
-                                            break
+                        inventory_levels = inventory_item.get("inventoryLevels", {}).get("edges", [])
+                        for level_edge in inventory_levels:
+                            level = level_edge["node"]
+                            # Zkontrolujeme, zda je to správná lokace
+                            location_id = level.get("location", {}).get("id", "")
+                            if location_id == f"gid://shopify/Location/{SHOPIFY_LOCATION_ID}":
+                                quantities = level.get("quantities", [])
+                                for qty in quantities:
+                                    if qty.get("name") == "available":
+                                        inventory_qty += qty.get("quantity", 0)
+                                        break
                     logger.info(f"  Varianta {i+1}: SKU='{sku_field}', Inventář={inventory_qty} (lokace {SHOPIFY_LOCATION_ID})")
             
             for variant in variants:
@@ -1402,26 +1397,21 @@ def analyze_differences(csv_products, shopify_products, logger=None):
                 shopify_inventory = 0
                 inventory_item = variant_node.get("inventoryItem")
                 if inventory_item and inventory_item.get("tracked"):
-                    # Nejdříve zkusíme inventoryQuantity přímo na variantě
-                    shopify_inventory = variant_node.get("inventoryQuantity", 0)
-                    
-                    # Pokud je 0, zkusíme inventoryLevels
-                    if shopify_inventory == 0:
-                        inventory_levels = inventory_item.get("inventoryLevels", {}).get("edges", [])
-                        for level_edge in inventory_levels:
-                            level = level_edge["node"]
-                            # Zkontrolujeme, zda je to správná lokace
-                            location_id = level.get("location", {}).get("id", "")
-                            if location_id == f"gid://shopify/Location/{SHOPIFY_LOCATION_ID}":
-                                # Nový formát Shopify API - quantities array
-                                quantities = level.get("quantities", [])
-                                for qty in quantities:
-                                    if qty.get("name") == "available":
-                                        shopify_inventory += qty.get("quantity", 0)
-                                        break
-                                # Fallback pro starý formát
-                                if not quantities:
-                                    shopify_inventory += level.get("available", 0)
+                    inventory_levels = inventory_item.get("inventoryLevels", {}).get("edges", [])
+                    for level_edge in inventory_levels:
+                        level = level_edge["node"]
+                        # Zkontrolujeme, zda je to správná lokace
+                        location_id = level.get("location", {}).get("id", "")
+                        if location_id == f"gid://shopify/Location/{SHOPIFY_LOCATION_ID}":
+                            # Nový formát Shopify API - quantities array
+                            quantities = level.get("quantities", [])
+                            for qty in quantities:
+                                if qty.get("name") == "available":
+                                    shopify_inventory += qty.get("quantity", 0)
+                                    break
+                            # Fallback pro starý formát
+                            if not quantities:
+                                shopify_inventory += level.get("available", 0)
                 
                 # Získáme cílové množství ze sdíleného inventáře
                 if base_regcis in shared_inventory:
@@ -1695,58 +1685,54 @@ def modify_products(analysis, shopify_products, csv_products, csv_mapping, dry_r
                 if target_variant_node:
                     inventory_item = target_variant_node.get("inventoryItem")
                     if inventory_item and inventory_item.get("tracked"):
-                        # Nejdříve zkusíme inventoryQuantity přímo na variantě
-                        current_qty = target_variant_node.get("inventoryQuantity", 0)
-                        
-                        # Pokud je 0, zkusíme inventoryLevels
-                        if current_qty == 0:
-                            inventory_levels = inventory_item.get("inventoryLevels", {}).get("edges", [])
-                            if inventory_levels:
-                                for level_edge in inventory_levels:
-                                    level = level_edge["node"]
-                                    # Zkontrolujeme, zda je to správná lokace
-                                    location_id = level.get("location", {}).get("id", "")
-                                    if location_id == f"gid://shopify/Location/{SHOPIFY_LOCATION_ID}":
-                                        # Nový formát Shopify API - quantities array
-                                        quantities = level.get("quantities", [])
-                                        for qty in quantities:
-                                            if qty.get("name") == "available":
-                                                current_qty = qty.get("quantity", 0)
-                                                break
-                                        # Fallback pro starý formát
-                                        if not quantities:
-                                            current_qty = level.get("available", 0)
-                                        
-                                        if current_qty == desired_qty:
-                                            continue
-                                        
-                                        if dry_run:
-                                            if logger:
-                                                logger.info(f"[dry-run] Nastavil by {level['id']} na {desired_qty} (aktuální: {current_qty})")
-                                            else:
-                                                print(f"[dry-run] Nastavil by {level['id']} na {desired_qty} (aktuální: {current_qty})")
+                        inventory_levels = inventory_item.get("inventoryLevels", {}).get("edges", [])
+                        if inventory_levels:
+                            for level_edge in inventory_levels:
+                                level = level_edge["node"]
+                                # Zkontrolujeme, zda je to správná lokace
+                                location_id = level.get("location", {}).get("id", "")
+                                if location_id == f"gid://shopify/Location/{SHOPIFY_LOCATION_ID}":
+                                    # Nový formát Shopify API - quantities array
+                                    quantities = level.get("quantities", [])
+                                    current_qty = 0
+                                    for qty in quantities:
+                                        if qty.get("name") == "available":
+                                            current_qty = qty.get("quantity", 0)
+                                            break
+                                    # Fallback pro starý formát
+                                    if not quantities:
+                                        current_qty = level.get("available", 0)
+                                    
+                                    if current_qty == desired_qty:
+                                        continue
+                                    
+                                    if dry_run:
+                                        if logger:
+                                            logger.info(f"[dry-run] Nastavil by {level['id']} na {desired_qty} (aktuální: {current_qty})")
                                         else:
-                                            try:
-                                                update_shopify_inventory(level["id"], desired_qty)
+                                            print(f"[dry-run] Nastavil by {level['id']} na {desired_qty} (aktuální: {current_qty})")
+                                    else:
+                                        try:
+                                            update_shopify_inventory(level["id"], desired_qty)
+                                            if logger:
+                                                logger.info(f"Aktualizován inventář {level['id']} na {desired_qty}")
+                                            else:
+                                                print(f"Aktualizován inventář {level['id']} na {desired_qty}")
+                                            updated_variants += 1
+                                        except Exception as e:
+                                            # Zkontrolujeme, zda je problém s nesledovaným inventářem
+                                            if "not stocked at the location" in str(e):
                                                 if logger:
-                                                    logger.info(f"Aktualizován inventář {level['id']} na {desired_qty}")
+                                                    logger.warning(f"Produkt není nastaven pro sledování inventáře na lokaci. Musíte ručně nastavit 'Track quantity' v Shopify Admin pro tento produkt.")
                                                 else:
-                                                    print(f"Aktualizován inventář {level['id']} na {desired_qty}")
-                                                updated_variants += 1
-                                            except Exception as e:
-                                                # Zkontrolujeme, zda je problém s nesledovaným inventářem
-                                                if "not stocked at the location" in str(e):
-                                                    if logger:
-                                                        logger.warning(f"Produkt není nastaven pro sledování inventáře na lokaci. Musíte ručně nastavit 'Track quantity' v Shopify Admin pro tento produkt.")
-                                                    else:
-                                                        print(f"[VAROVÁNÍ] Produkt není nastaven pro sledování inventáře na lokaci. Musíte ručně nastavit 'Track quantity' v Shopify Admin pro tento produkt.")
-                                                    results['errors'] += 1
+                                                    print(f"[VAROVÁNÍ] Produkt není nastaven pro sledování inventáře na lokaci. Musíte ručně nastavit 'Track quantity' v Shopify Admin pro tento produkt.")
+                                                results['errors'] += 1
+                                            else:
+                                                if logger:
+                                                    logger.error(f"Selhalo aktualizování inventáře {level['id']}: {e}")
                                                 else:
-                                                    if logger:
-                                                        logger.error(f"Selhalo aktualizování inventáře {level['id']}: {e}")
-                                                    else:
-                                                        print(f"Selhalo aktualizování inventáře {level['id']}: {e}")
-                                                    results['errors'] += 1
+                                                    print(f"Selhalo aktualizování inventáře {level['id']}: {e}")
+                                                results['errors'] += 1
                 
                 if updated_variants > 0:
                     results['inventory_updated'] += 1
