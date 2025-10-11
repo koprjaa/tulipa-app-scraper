@@ -66,8 +66,22 @@ HLAVNI_SKUPINY = [
 ]
 
 # --- ID AKCÍ ---
-ACTION_ID_SUBGROUPS = "7C100193-68DF-4C59-8692-33E421EEBCD3"
-ACTION_ID_PRODUCTS = "7DCCBAB9-35EA-4310-BC22-B7AC873F9398"
+ACTION_ID_SUBGROUPS = "7C100193-68DF-4C59-8692-33E421EEBCD3"  # podskupiny s parametrem skupiny
+ACTION_ID_PRODUCTS = "7DCCBAB9-35EA-4310-BC22-B7AC873F9398"  # produkty s parametrem podskupiny
+
+# --- SPECIÁLNÍ AKCE ---
+ACTION_ID_KONTAKTY = "E0E9F6FC-D077-49D9-BB05-4C8056F669E8"  # s parametry ["12095", "15303"] - kontakty
+ACTION_ID_KATEGORIE_100 = "44465692-619A-41AD-A578-ADB755659D0B"  # s parametrem ["100"] - kategorie řezaných květin
+ACTION_ID_KATEGORIE_300 = "44465692-619A-41AD-A578-ADB755659D0B"  # s parametrem ["300"] - kategorie s počty
+ACTION_ID_BROWSE_METADATA = "BC3642D5-D287-4CFE-A3CB-566DA8A126E0"  # bez parametrů - browse metadata
+ACTION_ID_NOVY = "C0D85B0E-01D0-4832-8D56-BCC1C71317CF"  # bez parametrů - nový ActionID
+
+# --- NOVÉ ACTIONID PRO PRODUKTY Z KATEGORIÍ ---
+ACTION_ID_PRODUCT_DETAILS = "9752DF9E-E95E-46F2-97F8-11F96ABEB71C"  # produkty s EAN kódem - QueryBrowse struktura
+ACTION_ID_PRODUCT_IMAGES = "982F0820-87A5-4F22-A2E9-724E14C208E1"  # obrázky produktů s EAN kódem - table struktura
+
+# --- BROWSE NAME ---
+BROWSE_NAME_PRODUCTS = "82"  # Hlavní seznam produktů
 
 # --- SHOPIFY KONFIGURACE ---
 SHOPIFY_LOCATION_ID = "108931842374"  # "Sklad Tulipa" location
@@ -466,6 +480,661 @@ def fetch_products(group_name, subgroup_code, subgroup_name, logger=None):
     return processed_products
 
 
+def get_browse_list(session_token, logger=None):
+    """Získá seznam všech dostupných browse definic."""
+    if logger:
+        logger.info("Získávám seznam dostupných browse definic...")
+    else:
+        print("[*] Získávám seznam dostupných browse definic...")
+    
+    payload = {
+        "_parameters": [
+            session_token, "GetBrowse",
+            {"Version": "1.0"},
+            []
+        ]
+    }
+    
+    response = execute_helios_command(payload, logger=logger)
+    
+    if not response or response["result"][0]["fields"].get("IsError", True):
+        if logger:
+            logger.warning("Nepodařilo se získat seznam browse definic.")
+        else:
+            print("  -> Nepodařilo se získat seznam browse definic.")
+        return []
+    
+    try:
+        rows = response["result"][0]["fields"]["Result"]["table"]["rows"]
+        browse_list = []
+        
+        for row in rows:
+            try:
+                # Zkusíme extrahovat název a ID browse definice
+                browse_info = {}
+                for field in row:
+                    field_name = field.get('FieldName', '')
+                    field_value = field.get('Value', '')
+                    browse_info[field_name] = field_value
+                
+                browse_list.append(browse_info)
+            except (IndexError, KeyError):
+                continue
+        
+        if logger:
+            logger.info(f"Nalezeno {len(browse_list)} browse definic.")
+        else:
+            print(f"  -> Nalezeno {len(browse_list)} browse definic.")
+        
+        return browse_list
+        
+    except (KeyError, IndexError):
+        if logger:
+            logger.warning("Nepodařilo se parsovat browse definice.")
+        else:
+            print("  -> Nepodařilo se parsovat browse definice.")
+        return []
+
+
+def get_browse_data(session_token, browse_name, logger=None):
+    """Získá data z konkrétní browse definice."""
+    if logger:
+        logger.info(f"Získávám data z browse '{browse_name}'...")
+    else:
+        print(f"[*] Získávám data z browse '{browse_name}'...")
+    
+    payload = {
+        "_parameters": [
+            session_token, "GetBrowse",
+            {"Version": "1.1", "BrowseName": browse_name},
+            []
+        ]
+    }
+    
+    response = execute_helios_command(payload, logger=logger)
+    
+    if not response or response["result"][0]["fields"].get("IsError", True):
+        if logger:
+            logger.warning(f"Nepodařilo se získat data z browse '{browse_name}'.")
+        else:
+            print(f"  -> Nepodařilo se získat data z browse '{browse_name}'.")
+        return []
+    
+    try:
+        result_data = response["result"][0]["fields"]["Result"]
+        
+        # Zkusíme různé struktury odpovědi
+        rows = None
+        if isinstance(result_data, dict) and "table" in result_data:
+            rows = result_data["table"]["rows"]
+        elif isinstance(result_data, list):
+            rows = result_data
+        
+        if not rows:
+            if logger:
+                logger.warning(f"Žádné řádky v odpovědi z browse '{browse_name}'.")
+            else:
+                print(f"  -> Žádné řádky v odpovědi.")
+            return []
+        
+        products = []
+        
+        for row in rows:
+            try:
+                # Převedeme row na dictionary
+                product_dict = {}
+                for field in row:
+                    field_name = field.get('FieldName', '')
+                    field_value = field.get('Value', '')
+                    product_dict[field_name] = field_value
+                
+                products.append(product_dict)
+            except (IndexError, KeyError, TypeError):
+                continue
+        
+        if logger:
+            logger.info(f"Získáno {len(products)} produktů z browse '{browse_name}'.")
+        else:
+            print(f"  -> Získáno {len(products)} produktů.")
+        
+        return products
+        
+    except (KeyError, IndexError, TypeError) as e:
+        if logger:
+            logger.warning(f"Nepodařilo se parsovat data z browse '{browse_name}': {e}")
+        else:
+            print(f"  -> Nepodařilo se parsovat data z browse '{browse_name}': {e}")
+        return []
+
+
+def get_all_ean_codes_from_categories(session_token, logger=None):
+    """Získá všechny EAN kódy ze všech kategorií a podkategorií."""
+    if logger:
+        logger.info("Získávám všechny EAN kódy z kategorií...")
+    else:
+        print("  -> Získávám všechny EAN kódy z kategorií...")
+    
+    # Seznam všech kategorií, které jsme našli
+    categories = [
+        "Aranž", "Deko", "Dráty", "Fólie", "Funkč", "Hnoji", "Lesky", "Nářad", 
+        "Obaly", "Osiva", "Ostat", "Papír", "Pásky", "Rafie", "Manip", "Sklo", 
+        "Stuhy", "Subst", "Svíčk", "Špend", "Výživ"
+    ]
+    
+    all_ean_codes = []
+    
+    for category in categories:
+        if logger:
+            logger.info(f"Získávám EAN kódy pro kategorii: {category}")
+        else:
+            print(f"    -> Získávám EAN kódy pro kategorii: {category}")
+        
+        # Získáme podskupiny pro kategorii
+        subgroups_payload = {
+            "_parameters": [
+                session_token, "RunExternalAction",
+                {
+                    "Version": "1.0",
+                    "ActionID": ACTION_ID_SUBGROUPS,
+                    "SelectedRows": [],
+                    "Parameters": [category]
+                },
+                []
+            ]
+        }
+        
+        subgroups_response = execute_helios_command(subgroups_payload, logger=logger)
+        if subgroups_response and not subgroups_response["result"][0]["fields"].get("IsError", True):
+            try:
+                result = subgroups_response["result"][0]["fields"]["Result"]
+                if isinstance(result, dict) and 'table' in result:
+                    rows = result['table']['rows']
+                    
+                    # Pro každou podskupinu získáme produkty
+                    for row in rows:
+                        subgroup_code = None
+                        subgroup_name = None
+                        
+                        for field in row:
+                            field_name = field.get('FieldName', '')
+                            field_value = field.get('Value', '')
+                            if field_name == 'K2':
+                                subgroup_code = field_value
+                            elif field_name == 'K2Name':
+                                subgroup_name = field_value
+                        
+                        if subgroup_code:
+                            if logger:
+                                logger.info(f"      Získávám produkty pro podskupinu: {subgroup_name} ({subgroup_code})")
+                            else:
+                                print(f"      -> Získávám produkty pro podskupinu: {subgroup_name} ({subgroup_code})")
+                            
+                            # Získáme produkty pro podskupinu
+                            products_payload = {
+                                "_parameters": [
+                                    session_token, "RunExternalAction",
+                                    {
+                                        "Version": "1.0",
+                                        "ActionID": ACTION_ID_PRODUCTS,
+                                        "SelectedRows": [],
+                                        "Parameters": [category, subgroup_code]
+                                    },
+                                    []
+                                ]
+                            }
+                            
+                            products_response = execute_helios_command(products_payload, logger=logger)
+                            if products_response and not products_response["result"][0]["fields"].get("IsError", True):
+                                try:
+                                    products_result = products_response["result"][0]["fields"]["Result"]
+                                    if isinstance(products_result, dict) and 'table' in products_result:
+                                        product_rows = products_result['table']['rows']
+                                        
+                                        # Extrahujeme EAN kódy
+                                        category_ean_count = 0
+                                        for product_row in product_rows:
+                                            for field in product_row:
+                                                field_name = field.get('FieldName', '')
+                                                field_value = field.get('Value', '')
+                                                if field_name == '_EAN' and field_value and len(field_value) > 5:
+                                                    all_ean_codes.append(field_value)
+                                                    category_ean_count += 1
+                                                    break
+                                        
+                                        if logger:
+                                            logger.info(f"        Získáno {len(product_rows)} produktů, {category_ean_count} EAN kódů")
+                                        else:
+                                            print(f"        -> Získáno {len(product_rows)} produktů, {category_ean_count} EAN kódů")
+                                            
+                                except (KeyError, IndexError, TypeError):
+                                    if logger:
+                                        logger.warning(f"        Nepodařilo se parsovat produkty pro podskupinu {subgroup_code}")
+                                    else:
+                                        print(f"        -> Nepodařilo se parsovat produkty pro podskupinu {subgroup_code}")
+                            else:
+                                if logger:
+                                    logger.warning(f"        Nepodařilo se stáhnout produkty pro podskupinu {subgroup_code}")
+                                else:
+                                    print(f"        -> Nepodařilo se stáhnout produkty pro podskupinu {subgroup_code}")
+                                    
+            except (KeyError, IndexError, TypeError):
+                if logger:
+                    logger.warning(f"Nepodařilo se parsovat podskupiny pro kategorii {category}")
+                else:
+                    print(f"    -> Nepodařilo se parsovat podskupiny pro kategorii {category}")
+        else:
+            if logger:
+                logger.warning(f"Nepodařilo se stáhnout podskupiny pro kategorii {category}")
+            else:
+                print(f"    -> Nepodařilo se stáhnout podskupiny pro kategorii {category}")
+    
+    # Odstraníme duplikáty
+    unique_ean_codes = list(set(all_ean_codes))
+    
+    if logger:
+        logger.info(f"Celkem získáno {len(unique_ean_codes)} unikátních EAN kódů ze všech kategorií")
+    else:
+        print(f"  -> Celkem získáno {len(unique_ean_codes)} unikátních EAN kódů ze všech kategorií")
+    
+    return unique_ean_codes
+
+
+
+
+def fetch_product_details(session_token, ean_code, logger=None):
+    """Stáhne detaily produktu pomocí ActionID_PRODUCT_DETAILS."""
+    payload = {
+        "_parameters": [
+            session_token, "RunExternalAction",
+            {
+                "Version": "1.0",
+                "ActionID": ACTION_ID_PRODUCT_DETAILS,
+                "SelectedRows": [],
+                "Parameters": [ean_code]
+            },
+            []
+        ]
+    }
+    
+    response = execute_helios_command(payload, logger=logger)
+    if response and not response["result"][0]["fields"].get("IsError", True):
+        try:
+            result = response["result"][0]["fields"]["Result"]
+            if isinstance(result, dict) and 'fields' in result and 'QueryBrowse' in result['fields']:
+                query_browse = result['fields']['QueryBrowse']
+                if isinstance(query_browse, dict) and 'table' in query_browse:
+                    rows = query_browse['table']['rows']
+                    if rows:
+                        # Vezmeme první produkt
+                        product_dict = {}
+                        for field in rows[0]:
+                            field_name = field.get('FieldName', '')
+                            field_value = field.get('Value', '')
+                            product_dict[field_name] = field_value
+                        
+                        # Přidáme metadata pro kompatibilitu
+                        product_dict['HlavniSkupina'] = 'Kategorie'
+                        product_dict['PodskupinaKod'] = product_dict.get('K1', 'Unknown')
+                        product_dict['PodskupinaNazev'] = product_dict.get('NazevK1', 'Unknown')
+                        
+                        if logger:
+                            logger.info(f"    Získáno {len(rows)} produktů pro EAN {ean_code}")
+                        else:
+                            print(f"    -> Získáno {len(rows)} produktů pro EAN {ean_code}")
+                        
+                        return product_dict
+        except (KeyError, IndexError, TypeError):
+            if logger:
+                logger.warning(f"Nepodařilo se parsovat detaily produktu pro EAN {ean_code}")
+            else:
+                print(f"    -> Nepodařilo se parsovat detaily produktu pro EAN {ean_code}")
+    
+    return None
+
+
+def fetch_product_images(session_token, ean_code, logger=None):
+    """Stáhne obrázky produktu pomocí ActionID_PRODUCT_IMAGES."""
+    payload = {
+        "_parameters": [
+            session_token, "RunExternalAction",
+            {
+                "Version": "1.0",
+                "ActionID": ACTION_ID_PRODUCT_IMAGES,
+                "SelectedRows": [],
+                "Parameters": [ean_code]
+            },
+            []
+        ]
+    }
+    
+    response = execute_helios_command(payload, logger=logger)
+    if response and not response["result"][0]["fields"].get("IsError", True):
+        try:
+            result = response["result"][0]["fields"]["Result"]
+            if isinstance(result, dict) and 'table' in result:
+                rows = result['table']['rows']
+                images = []
+                for row in rows:
+                    image_dict = {}
+                    for field in row:
+                        field_name = field.get('FieldName', '')
+                        field_value = field.get('Value', '')
+                        image_dict[field_name] = field_value
+                    images.append(image_dict)
+                
+                if logger:
+                    logger.info(f"    Získáno {len(images)} obrázků pro EAN {ean_code}")
+                else:
+                    print(f"    -> Získáno {len(images)} obrázků pro EAN {ean_code}")
+                
+                return images
+        except (KeyError, IndexError, TypeError):
+            if logger:
+                logger.warning(f"Nepodařilo se parsovat obrázky produktu pro EAN {ean_code}")
+            else:
+                print(f"    -> Nepodařilo se parsovat obrázky produktu pro EAN {ean_code}")
+    
+    return []
+
+
+def fetch_products_for_categories(session_token, logger=None):
+    """Stáhne produkty pro všechny kategorie z ActionID_KATEGORIE_300."""
+    if logger:
+        logger.info("Stahuji produkty pro všechny kategorie...")
+    else:
+        print("[*] Stahuji produkty pro všechny kategorie...")
+    
+    # Seznam všech kategorií, které jsme našli
+    categories = [
+        "Aranž", "Deko", "Dráty", "Fólie", "Funkč", "Hnoji", "Lesky", "Nářad", 
+        "Obaly", "Osiva", "Ostat", "Papír", "Pásky", "Rafie", "Manip", "Sklo", 
+        "Stuhy", "Subst", "Svíčk", "Špend", "Výživ"
+    ]
+    
+    all_products = []
+    
+    for category in categories:
+        if logger:
+            logger.info(f"Stahuji produkty pro kategorii: {category}")
+        else:
+            print(f"  -> Stahuji produkty pro kategorii: {category}")
+        
+        # Použijeme ACTION_ID_PRODUCTS s parametry [group_name, subgroup_code]
+        # Kategorie fungují jako skupiny, takže použijeme kategorii jako oba parametry
+        payload = {
+            "_parameters": [
+                session_token, "RunExternalAction",
+                {
+                    "Version": "1.0",
+                    "ActionID": ACTION_ID_PRODUCTS,
+                    "SelectedRows": [],
+                    "Parameters": [category, category]
+                },
+                []
+            ]
+        }
+        
+        response = execute_helios_command(payload, logger=logger)
+        if response and not response["result"][0]["fields"].get("IsError", True):
+            try:
+                rows = response["result"][0]["fields"]["Result"]["table"]["rows"]
+                category_products = []
+                
+                for row in rows:
+                    try:
+                        product_dict = {}
+                        for field in row:
+                            field_name = field.get('FieldName', '')
+                            field_value = field.get('Value', '')
+                            product_dict[field_name] = field_value
+                        
+                        # Přidáme metadata pro kompatibilitu
+                        product_dict['HlavniSkupina'] = 'Kategorie'
+                        product_dict['PodskupinaKod'] = category
+                        product_dict['PodskupinaNazev'] = category
+                        
+                        category_products.append(product_dict)
+                    except (IndexError, KeyError, TypeError):
+                        continue
+                
+                all_products.extend(category_products)
+                
+                if logger:
+                    logger.info(f"    Získáno {len(category_products)} produktů pro kategorii {category}")
+                else:
+                    print(f"    -> Získáno {len(category_products)} produktů pro kategorii {category}")
+                    
+            except (KeyError, IndexError):
+                if logger:
+                    logger.warning(f"Nepodařilo se parsovat produkty pro kategorii {category}")
+                else:
+                    print(f"    -> Nepodařilo se parsovat produkty pro kategorii {category}")
+        else:
+            if logger:
+                logger.warning(f"Nepodařilo se stáhnout produkty pro kategorii {category}")
+            else:
+                print(f"    -> Nepodařilo se stáhnout produkty pro kategorii {category}")
+    
+    if logger:
+        logger.info(f"Celkem získáno {len(all_products)} produktů ze všech kategorií")
+    else:
+        print(f"  -> Celkem získáno {len(all_products)} produktů ze všech kategorií")
+    
+    return all_products
+
+
+def fetch_extra_products(session_token, logger=None):
+    """Stáhne dodatečné produkty z ActionID browse metadata (jediné, které vrací skutečné produkty)."""
+    if logger:
+        logger.info("Stahuji dodatečné produkty z ActionID browse metadata...")
+    else:
+        print("[*] Stahuji dodatečné produkty z ActionID browse metadata...")
+    
+    extra_products = []
+    
+    # Test ActionID browse metadata bez parametrů (jediné, které vrací skutečné produkty)
+    payload3 = {
+        "_parameters": [
+            session_token, "RunExternalAction",
+            {
+                "Version": "1.0",
+                "ActionID": ACTION_ID_BROWSE_METADATA,
+                "SelectedRows": [],
+                "Parameters": []
+            },
+            []
+        ]
+    }
+    
+    response3 = execute_helios_command(payload3, logger=logger)
+    if response3 and not response3["result"][0]["fields"].get("IsError", True):
+        try:
+            result3 = response3["result"][0]["fields"]["Result"]
+            # ActionID 3 má jinou strukturu - Result je přímo dict s 'table'
+            if isinstance(result3, dict) and 'table' in result3:
+                rows3 = result3["table"]["rows"]
+                for row in rows3:
+                    try:
+                        product_dict = {}
+                        for field in row:
+                            field_name = field.get('FieldName', '')
+                            field_value = field.get('Value', '')
+                            product_dict[field_name] = field_value
+                        
+                        # Přidáme metadata pro kompatibilitu
+                        product_dict['HlavniSkupina'] = 'Extra'
+                        product_dict['PodskupinaKod'] = 'Extra3'
+                        product_dict['PodskupinaNazev'] = 'Extra produkty 3'
+                        
+                        extra_products.append(product_dict)
+                    except (IndexError, KeyError, TypeError):
+                        continue
+                
+                if logger:
+                    logger.info(f"Získáno {len(rows3)} produktů z ActionID 3")
+                else:
+                    print(f"  -> Získáno {len(rows3)} produktů z ActionID 3")
+            else:
+                if logger:
+                    logger.warning("ActionID 3 má neočekávanou strukturu výsledku")
+                else:
+                    print("  -> ActionID 3 má neočekávanou strukturu výsledku")
+        except (KeyError, IndexError):
+            if logger:
+                logger.warning("Nepodařilo se parsovat produkty z ActionID 3")
+            else:
+                print("  -> Nepodařilo se parsovat produkty z ActionID 3")
+    
+    if logger:
+        logger.info(f"Celkem získáno {len(extra_products)} dodatečných produktů")
+    else:
+        print(f"  -> Celkem získáno {len(extra_products)} dodatečných produktů")
+    
+    return extra_products
+
+
+def fetch_additional_categories(session_token, logger=None):
+    """Stáhne dodatečné kategorie s počty produktů."""
+    if logger:
+        logger.info("Stahuji dodatečné kategorie s počty...")
+    else:
+        print("[*] Stahuji dodatečné kategorie s počty...")
+    
+    payload = {
+        "_parameters": [
+            session_token, "RunExternalAction",
+            {
+                "Version": "1.0",
+                "ActionID": ACTION_ID_KATEGORIE_300,
+                "SelectedRows": [],
+                "Parameters": ["300"]
+            },
+            []
+        ]
+    }
+    
+    response = execute_helios_command(payload, logger=logger)
+    
+    if not response or response["result"][0]["fields"].get("IsError", True):
+        if logger:
+            logger.warning("Nepodařilo se stáhnout dodatečné kategorie.")
+        else:
+            print("  -> Nepodařilo se stáhnout dodatečné kategorie.")
+        return {}
+    
+    try:
+        rows = response["result"][0]["fields"]["Result"]["table"]["rows"]
+        categories = {}
+        
+        for row in rows:
+            try:
+                category_id = row[0].get('Value', '')
+                category_code = row[1].get('Value', '')
+                category_name = row[2].get('Value', '')
+                count = row[3].get('Value', '0')
+                
+                categories[category_code] = {
+                    'id': category_id,
+                    'name': category_name,
+                    'count': int(count) if count.isdigit() else 0
+                }
+            except (IndexError, KeyError, ValueError):
+                continue
+        
+        if logger:
+            logger.info(f"Získáno {len(categories)} dodatečných kategorií.")
+        else:
+            print(f"  -> Získáno {len(categories)} dodatečných kategorií.")
+        
+        return categories
+        
+    except (KeyError, IndexError):
+        if logger:
+            logger.warning("Nepodařilo se parsovat dodatečné kategorie.")
+        else:
+            print("  -> Nepodařilo se parsovat dodatečné kategorie.")
+        return {}
+
+
+def test_action_ids_with_parameters(session_token, logger=None):
+    """Otestuje ActionID s různými parametry podle příkladů."""
+    if logger:
+        logger.info("=== TESTOVÁNÍ ACTIONID S PARAMETRY ===")
+    else:
+        print("\n=== TESTOVÁNÍ ACTIONID S PARAMETRY ===")
+
+    action_tests = [
+        (ACTION_ID_KONTAKTY, ["12095", "15303"], "Kontakty s parametry"),
+        (ACTION_ID_KATEGORIE_100, ["100"], "Kategorie s parametrem 100"),
+        (ACTION_ID_KATEGORIE_300, ["300"], "Kategorie s parametrem 300"),
+        (ACTION_ID_BROWSE_METADATA, [], "Browse metadata bez parametrů"),
+        (ACTION_ID_SUBGROUPS, ["Aranž"], "Podskupiny pro Aranž"),
+        (ACTION_ID_SUBGROUPS, ["Sezón"], "Podskupiny pro Sezón")
+    ]
+    
+    results = {}
+    
+    for action_id, params, description in action_tests:
+        if logger:
+            logger.info(f"Testuji {description}: {action_id}")
+        else:
+            print(f"  [*] Testuji {description}: {action_id}")
+        
+        payload = {
+            "_parameters": [
+                session_token, "RunExternalAction",
+                {
+                    "Version": "1.0",
+                    "ActionID": action_id,
+                    "SelectedRows": [],
+                    "Parameters": params
+                },
+                []
+            ]
+        }
+        
+        response = execute_helios_command(payload, logger=logger)
+        
+        if response and not response["result"][0]["fields"].get("IsError", True):
+            results[action_id] = {
+                "success": True,
+                "description": description,
+                "params": params,
+                "data": response["result"][0]["fields"].get("Result", {})
+            }
+            
+            if logger:
+                logger.info(f"    ✅ {description} - ÚSPĚCH")
+            else:
+                print(f"    ✅ {description} - ÚSPĚCH")
+            
+            # Zkusíme extrahovat počet řádků
+            try:
+                result_data = response["result"][0]["fields"].get("Result", {})
+                if isinstance(result_data, dict) and "table" in result_data:
+                    rows = result_data["table"]["rows"]
+                    if logger:
+                        logger.info(f"      └── Vrátil {len(rows)} řádků")
+                    else:
+                        print(f"      └── Vrátil {len(rows)} řádků")
+            except Exception:
+                pass
+        else:
+            results[action_id] = {
+                "success": False,
+                "description": description,
+                "params": params,
+                "error": response["result"][0]["fields"].get("ErrorMessage", "Neznámá chyba") if response else "Žádná odpověď"
+            }
+            
+            if logger:
+                logger.info(f"    ❌ {description} - SELHALO")
+            else:
+                print(f"    ❌ {description} - SELHALO")
+    
+    return results
+
+
 def discover_categories(logger=None):
     """Objeví všechny dostupné kategorie."""
     if logger:
@@ -580,6 +1249,63 @@ def show_category_discovery_results(results):
     return [cat for cat, _ in found_categories]
 
 
+def scrape_tulipa_data_browse(logger=None):
+    """Stáhne všechna data z Tulipa pomocí GetBrowse metody (rychlejší)."""
+    if logger:
+        logger.info("=== FÁZE 1: STAHOVÁNÍ DAT Z TULIPA (GetBrowse) ===")
+    
+    # Získáme platný session token
+    session_token = get_valid_session_token(logger)
+    if not session_token:
+        if logger:
+            logger.error("Nepodařilo se získat platný session token")
+        else:
+            print("[CHYBA] Nepodařilo se získat platný session token")
+            return []
+    
+    # Aktivace databáze
+    change_db_payload = {
+        "_parameters": [
+            session_token, "ChangeDatabase", 
+            {"Version": "1.0", "DatabaseName": "Helios001"}, []
+        ]
+    }
+    change_db_response = execute_helios_command(change_db_payload, is_reset_call=True, logger=logger)
+    if not change_db_response or change_db_response["result"][0]["fields"].get("IsError", True):
+        if logger:
+            logger.error("Aktivace databáze selhala.")
+        else:
+            print("[CHYBA] Aktivace databáze selhala.")
+        return []
+    
+    # Stáhneme data pomocí GetBrowse
+    products = get_browse_data(session_token, BROWSE_NAME_PRODUCTS, logger)
+    
+    if not products:
+        if logger:
+            logger.warning("Nepodařilo se stáhnout produkty pomocí GetBrowse, zkusím původní metodu...")
+        else:
+            print("[VAROVÁNÍ] Nepodařilo se stáhnout produkty pomocí GetBrowse, zkusím původní metodu...")
+        return scrape_tulipa_data(logger)
+    
+    # Přidáme metadata pro kompatibilitu s původním systémem
+    for product in products:
+        # Pokud nemáme hlavní skupinu, zkusíme ji odvodit z názvu nebo jiných polí
+        if 'HlavniSkupina' not in product:
+            product['HlavniSkupina'] = 'Browse'  # Označíme jako Browse data
+        if 'PodskupinaKod' not in product:
+            product['PodskupinaKod'] = product.get('SkupZbo', '')
+        if 'PodskupinaNazev' not in product:
+            product['PodskupinaNazev'] = product.get('SkupZbo', '')
+    
+    if logger:
+        logger.info(f"Úspěšně staženo {len(products)} produktů pomocí GetBrowse")
+    else:
+        print(f"[OK] Úspěšně staženo {len(products)} produktů pomocí GetBrowse")
+    
+    return products
+
+
 def scrape_tulipa_data(logger=None):
     """Stáhne všechna data z Tulipa."""
     if logger:
@@ -608,6 +1334,18 @@ def scrape_tulipa_data(logger=None):
         else:
             print("[CHYBA] Aktivace databáze selhala.")
         return []
+    
+    # Stahování dodatečných kategorií
+    additional_categories = fetch_additional_categories(session_token, logger)
+    
+    # Stahování dodatečných produktů
+    extra_products = fetch_extra_products(session_token, logger)
+    
+    # Stahování produktů pro všechny kategorie
+    category_products = fetch_products_for_categories(session_token, logger)
+    
+    # Stahování všech produktů z kategorií pomocí kompletního workflow
+    all_category_products = fetch_all_products_from_categories(session_token, logger)
     
     # Stahování všech produktů
     all_products = []
@@ -665,6 +1403,58 @@ def scrape_tulipa_data(logger=None):
                 product['PodskupinaKod'] = subgroup_code
                 product['PodskupinaNazev'] = subgroup_name
                 all_products.append(product)
+
+    # Přidáme dodatečné produkty
+    all_products.extend(extra_products)
+
+    # Přidáme produkty z kategorií
+    all_products.extend(category_products)
+    
+    # Přidáme všechny produkty z kategorií pomocí kompletního workflow
+    all_products.extend(all_category_products)
+
+    # Přidáme dodatečné kategorie jako speciální řádky
+    for category_code, category_info in additional_categories.items():
+        category_row = {
+            'HlavniSkupina': 'Kategorie',
+            'PodskupinaKod': category_code,
+            'PodskupinaNazev': category_info['name'],
+            'Nazev1': f"KATEGORIE: {category_info['name']}",
+            'RegCis': f"CAT_{category_code}",
+            '_cena_cu1': '0',
+            'Mnozstvi': str(category_info['count']),
+            'ID': category_info['id'],
+            'JizNaSklade': str(category_info['count']),
+            'K1': category_code,
+            'K2': category_info['name'],
+            'Nazev': f"KATEGORIE: {category_info['name']}",
+            'Nazev2': '',
+            'Nazev4': '',
+            'NazevK1': category_code,
+            'NazevK2': category_info['name'],
+            'PrepMnozstvi': str(category_info['count']),
+            'SKP': '',
+            'SkupZbo': category_code,
+            'Sluzba': '0',
+            'Vykres': '',
+            '_Barva': '',
+            '_EAN': '',
+            '_PocNaPlat': '',
+            '_Tulipa_Baleni': '',
+            '_Tulipa_DelkaVyska': '',
+            '_Tulipa_ExistujeObrazek': '',
+            '_Tulipa_KodObalu': '',
+            '_Tulipa_NeaktualizovatCenu': '',
+            '_Tulipa_PocetGramaz': '',
+            '_Tulipa_PrumKvet': '',
+            '_Tulipa_Rozmer': '',
+            '_Tulipa_URL_Obrazku': '',
+            '_Tulipa_Zkratka': category_code,
+            '_cena_cu2': '0',
+            '_cena_cu3': '0',
+            '_cena_cu4': '0'
+        }
+        all_products.append(category_row)
 
     return all_products
 
@@ -1101,10 +1891,19 @@ def get_product_inventory_limit(regcis, product_type='regular'):
 # =============================================================================
 
 def get_cache_file_path(base_name="produkty_komplet"):
-    """Vrátí cestu k cache souboru s datem."""
+    """Vrátí cestu k cache souboru s datem v adresáři pro daný den."""
+    # Vytvoříme adresář s datem (YYYY-MM-DD)
+    date_str = datetime.now().strftime("%Y-%m-%d")
+    date_dir = os.path.join("data", date_str)
+    
+    # Vytvoříme adresář pokud neexistuje
+    os.makedirs(date_dir, exist_ok=True)
+    
+    # Vytvoříme název souboru s časem
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     filename = f"{base_name}_{timestamp}.csv"
-    return os.path.join("data", filename)
+    
+    return os.path.join(date_dir, filename)
 
 
 def is_cache_valid(file_path, max_age_hours=1):
@@ -1120,14 +1919,14 @@ def is_cache_valid(file_path, max_age_hours=1):
 
 
 def find_latest_cache_file(base_name="produkty_komplet"):
-    """Najde nejnovější cache soubor."""
+    """Najde nejnovější cache soubor v adresářích s daty."""
     data_dir = "data"
     if not os.path.exists(data_dir):
         return None
     
-    # Najdeme všechny soubory odpovídající vzoru
+    # Najdeme všechny soubory odpovídající vzoru v podadresářích
     import glob
-    pattern = os.path.join(data_dir, f"{base_name}_*.csv")
+    pattern = os.path.join(data_dir, "*", f"{base_name}_*.csv")
     files = glob.glob(pattern)
     
     if not files:
@@ -1139,13 +1938,13 @@ def find_latest_cache_file(base_name="produkty_komplet"):
 
 
 def cleanup_old_cache_files(base_name="produkty_komplet", keep_hours=24):
-    """Smaže staré cache soubory."""
+    """Smaže staré cache soubory v adresářích s daty."""
     data_dir = "data"
     if not os.path.exists(data_dir):
         return
     
     import glob
-    pattern = os.path.join(data_dir, f"{base_name}_*.csv")
+    pattern = os.path.join(data_dir, "*", f"{base_name}_*.csv")
     files = glob.glob(pattern)
     
     current_time = datetime.now()
@@ -1973,7 +2772,14 @@ def run_main_workflow(args, logger):
             # Pokud cache není platný, stáhneme nová data
             if csv_products is None:
                 logger.info("Začínám fázi stahování...")
-                csv_products = scrape_tulipa_data(logger)
+                
+                # Vybereme metodu stahování
+                if args.browse:
+                    logger.info("Používám GetBrowse metodu (rychlejší)")
+                    csv_products = scrape_tulipa_data_browse(logger)
+                else:
+                    logger.info("Používám původní metodu (RunExternalAction)")
+                    csv_products = scrape_tulipa_data(logger)
                 
                 if not csv_products:
                     logger.error("Žádné produkty staženy, ukončuji")
@@ -2075,6 +2881,9 @@ def main():
     parser.add_argument("--log-level", default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR"], help="Úroveň logování")
     parser.add_argument("--safety-reserve", type=int, default=5, help="Rezerva pro jistotu (výchozí: 5)")
     parser.add_argument("--reserve-threshold", type=int, default=20, help="Prahová hodnota pro odečítání rezervy (výchozí: 20)")
+    parser.add_argument("--browse", action="store_true", help="Použít GetBrowse metodu místo původní metody (rychlejší)")
+    parser.add_argument("--test-actions", action="store_true", help="Otestovat ActionID s různými parametry")
+    parser.add_argument("--list-browse", action="store_true", help="Vypsat dostupné browse definice")
     
     args = parser.parse_args()
     
@@ -2102,6 +2911,56 @@ def main():
         print("=" * 50)
         print("Tento režim objeví dostupné kategorie pro pozdější použití.")
         print("Spusťte skript bez argumentů pro normální běh.")
+        return 0
+    
+    # Testování ActionID s parametry
+    if args.test_actions:
+        logger.info("=== TESTOVÁNÍ ACTIONID S PARAMETRY ===")
+        session_token = get_valid_session_token(logger)
+        if not session_token:
+            logger.error("Nepodařilo se získat platný session token")
+            return 1
+        
+        # Aktivace databáze
+        change_db_payload = {
+            "_parameters": [
+                session_token, "ChangeDatabase", 
+                {"Version": "1.0", "DatabaseName": "Helios001"}, []
+            ]
+        }
+        execute_helios_command(change_db_payload, is_reset_call=True, logger=logger)
+        
+        results = test_action_ids_with_parameters(session_token, logger)
+        logger.info("=== VÝSLEDKY TESTOVÁNÍ ===")
+        for action_id, result in results.items():
+            if result['success']:
+                logger.info(f"✅ {result['description']}: ÚSPĚCH")
+            else:
+                logger.info(f"❌ {result['description']}: {result['error']}")
+        return 0
+    
+    
+    # Vypsání browse definic
+    if args.list_browse:
+        logger.info("=== DOSTUPNÉ BROWSE DEFINICE ===")
+        session_token = get_valid_session_token(logger)
+        if not session_token:
+            logger.error("Nepodařilo se získat platný session token")
+            return 1
+        
+        # Aktivace databáze
+        change_db_payload = {
+            "_parameters": [
+                session_token, "ChangeDatabase", 
+                {"Version": "1.0", "DatabaseName": "Helios001"}, []
+            ]
+        }
+        execute_helios_command(change_db_payload, is_reset_call=True, logger=logger)
+        
+        browse_list = get_browse_list(session_token, logger)
+        logger.info(f"Nalezeno {len(browse_list)} browse definic:")
+        for i, browse in enumerate(browse_list[:10]):  # Zobrazíme prvních 10
+            logger.info(f"  {i+1}. {browse}")
         return 0
     
     logger.info("Spouštím Tulipa Offers Scraper")
@@ -2159,6 +3018,234 @@ def main():
     
     # Normální běh (bez loop)
     return run_main_workflow(args, logger)
+
+
+def fetch_all_products_from_categories(session_token, logger=None):
+    """Stáhne všechny produkty z kategorií pomocí kompletního workflow."""
+    if logger:
+        logger.info("Stahuji všechny produkty z kategorií pomocí kompletního workflow...")
+    else:
+        print("[*] Stahuji všechny produkty z kategorií pomocí kompletního workflow...")
+    
+    all_products = []
+    
+    # 1. Získáme všechny kategorie
+    categories_payload = {
+        "_parameters": [
+            session_token, "RunExternalAction",
+            {
+                "Version": "1.0",
+                "ActionID": ACTION_ID_KATEGORIE_300,
+                "SelectedRows": [],
+                "Parameters": ["300"]
+            },
+            []
+        ]
+    }
+    
+    categories_response = execute_helios_command(categories_payload, logger=logger)
+    if not categories_response or categories_response["result"][0]["fields"].get("IsError", True):
+        if logger:
+            logger.warning("Nepodařilo se stáhnout kategorie")
+        else:
+            print("  -> Nepodařilo se stáhnout kategorie")
+        return []
+    
+    try:
+        categories_rows = categories_response["result"][0]["fields"]["Result"]["table"]["rows"]
+        categories = []
+        
+        for row in categories_rows:
+            category_id = row[0].get('Value', '')
+            category_code = row[1].get('Value', '')
+            category_name = row[2].get('Value', '')
+            count = row[3].get('Value', '0')
+            
+            categories.append({
+                'id': category_id,
+                'code': category_code,
+                'name': category_name,
+                'count': int(count) if count.isdigit() else 0
+            })
+        
+        if logger:
+            logger.info(f"Získáno {len(categories)} kategorií")
+        else:
+            print(f"  -> Získáno {len(categories)} kategorií")
+        
+        # 2. Pro každou kategorii získáme podskupiny a produkty
+        for category in categories:
+            category_code = category['code']
+            category_name = category['name']
+            category_count = category['count']
+            
+            if category_count == 0:
+                if logger:
+                    logger.info(f"Kategorie {category_code} má 0 produktů, přeskočeno")
+                else:
+                    print(f"  -> Kategorie {category_code} má 0 produktů, přeskočeno")
+                continue
+            
+            if logger:
+                logger.info(f"Zpracovávám kategorii: {category_code} - {category_name} ({category_count} produktů)")
+            else:
+                print(f"  -> Zpracovávám kategorii: {category_code} - {category_name} ({category_count} produktů)")
+            
+            # Získáme podskupiny pro kategorii
+            subgroups_payload = {
+                "_parameters": [
+                    session_token, "RunExternalAction",
+                    {
+                        "Version": "1.0",
+                        "ActionID": ACTION_ID_SUBGROUPS,
+                        "SelectedRows": [],
+                        "Parameters": [category_code]
+                    },
+                    []
+                ]
+            }
+            
+            subgroups_response = execute_helios_command(subgroups_payload, logger=logger)
+            if not subgroups_response or subgroups_response["result"][0]["fields"].get("IsError", True):
+                if logger:
+                    logger.warning(f"Nepodařilo se stáhnout podskupiny pro kategorii {category_code}")
+                else:
+                    print(f"    -> Nepodařilo se stáhnout podskupiny pro kategorii {category_code}")
+                continue
+            
+            try:
+                subgroups_rows = subgroups_response["result"][0]["fields"]["Result"]["table"]["rows"]
+                subgroups = []
+                
+                for row in subgroups_rows:
+                    subgroup_code = None
+                    subgroup_name = None
+                    
+                    for field in row:
+                        field_name = field.get('FieldName', '')
+                        field_value = field.get('Value', '')
+                        if field_name == 'K2':
+                            subgroup_code = field_value
+                        elif field_name == 'K2Name':
+                            subgroup_name = field_value
+                    
+                    if subgroup_code:
+                        subgroups.append({
+                            'code': subgroup_code,
+                            'name': subgroup_name
+                        })
+                
+                if logger:
+                    logger.info(f"    Získáno {len(subgroups)} podskupin pro kategorii {category_code}")
+                else:
+                    print(f"    -> Získáno {len(subgroups)} podskupin pro kategorii {category_code}")
+                
+                # Pro každou podskupinu získáme produkty
+                for subgroup in subgroups:
+                    subgroup_code = subgroup['code']
+                    subgroup_name = subgroup['name']
+                    
+                    products_payload = {
+                        "_parameters": [
+                            session_token, "RunExternalAction",
+                            {
+                                "Version": "1.0",
+                                "ActionID": ACTION_ID_PRODUCTS,
+                                "SelectedRows": [],
+                                "Parameters": [category_code, subgroup_code]
+                            },
+                            []
+                        ]
+                    }
+                    
+                    products_response = execute_helios_command(products_payload, logger=logger)
+                    if products_response and not products_response["result"][0]["fields"].get("IsError", True):
+                        try:
+                            products_result = products_response["result"][0]["fields"]["Result"]
+                            
+                            # Debug: vypíšeme strukturu Result
+                            if logger:
+                                logger.debug(f"      Struktura Result pro {subgroup_code}: {type(products_result)}")
+                                if isinstance(products_result, dict):
+                                    logger.debug(f"      Klíče Result: {list(products_result.keys())}")
+                            
+                            products_rows = []
+                            
+                            # Zkusíme různé struktury
+                            if isinstance(products_result, dict):
+                                # Struktura 1: QueryBrowse
+                                if 'fields' in products_result and 'QueryBrowse' in products_result['fields']:
+                                    query_browse = products_result['fields']['QueryBrowse']
+                                    if isinstance(query_browse, dict) and 'table' in query_browse:
+                                        products_rows = query_browse['table']['rows']
+                                
+                                # Struktura 2: Přímá table struktura
+                                elif 'table' in products_result:
+                                    products_rows = products_result['table']['rows']
+                                
+                                # Struktura 3: Přímý seznam řádků
+                                elif isinstance(products_result, list):
+                                    products_rows = products_result
+                            
+                            # Zpracujeme řádky
+                            if products_rows:
+                                for row in products_rows:
+                                    try:
+                                        product_dict = {}
+                                        for field in row:
+                                            field_name = field.get('FieldName', '')
+                                            field_value = field.get('Value', '')
+                                            product_dict[field_name] = field_value
+                                        
+                                        # Přidáme metadata pro kompatibilitu
+                                        product_dict['HlavniSkupina'] = 'Kategorie'
+                                        product_dict['PodskupinaKod'] = category_code
+                                        product_dict['PodskupinaNazev'] = subgroup_name
+                                        
+                                        all_products.append(product_dict)
+                                    except (IndexError, KeyError, TypeError):
+                                        continue
+                                
+                                if logger:
+                                    logger.info(f"      Získáno {len(products_rows)} produktů pro podskupinu {subgroup_code}")
+                                else:
+                                    print(f"      -> Získáno {len(products_rows)} produktů pro podskupinu {subgroup_code}")
+                            else:
+                                if logger:
+                                    logger.warning(f"      Žádné produkty pro podskupinu {subgroup_code} (struktura: {type(products_result)})")
+                                else:
+                                    print(f"      -> Žádné produkty pro podskupinu {subgroup_code} (struktura: {type(products_result)})")
+                                    
+                        except (KeyError, IndexError, TypeError) as e:
+                            if logger:
+                                logger.warning(f"      Nepodařilo se parsovat produkty pro podskupinu {subgroup_code}: {e}")
+                            else:
+                                print(f"      -> Nepodařilo se parsovat produkty pro podskupinu {subgroup_code}: {e}")
+                    else:
+                        if logger:
+                            logger.warning(f"      Nepodařilo se stáhnout produkty pro podskupinu {subgroup_code}")
+                        else:
+                            print(f"      -> Nepodařilo se stáhnout produkty pro podskupinu {subgroup_code}")
+                            
+            except (KeyError, IndexError, TypeError):
+                if logger:
+                    logger.warning(f"    Nepodařilo se parsovat podskupiny pro kategorii {category_code}")
+                else:
+                    print(f"    -> Nepodařilo se parsovat podskupiny pro kategorii {category_code}")
+                    
+    except (KeyError, IndexError, TypeError):
+        if logger:
+            logger.warning("Nepodařilo se parsovat kategorie")
+        else:
+            print("  -> Nepodařilo se parsovat kategorie")
+        return []
+    
+    if logger:
+        logger.info(f"Celkem získáno {len(all_products)} produktů ze všech kategorií")
+    else:
+        print(f"  -> Celkem získáno {len(all_products)} produktů ze všech kategorií")
+    
+    return all_products
 
 
 if __name__ == "__main__":
