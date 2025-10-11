@@ -5,7 +5,7 @@ Nástroj pro stahování produktových dat z Tulipa serveru a synchronizaci s Sh
 ## Instalace
 
 ```bash
-git clone https://github.com/[username]/tulipa-offers-scraper.git
+git clone https://github.com/koprjaa/tulipa-offers-scraper.git
 cd tulipa-offers-scraper
 pip install -r requirements.txt
 ```
