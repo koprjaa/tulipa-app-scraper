@@ -8,6 +8,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+from tulipa_app_scraper import __version__
 from tulipa_app_scraper.infrastructure.cache import CacheStore
 from tulipa_app_scraper.infrastructure.config import Settings
 from tulipa_app_scraper.infrastructure.csv_writer import CSVStore
@@ -16,6 +17,22 @@ from tulipa_app_scraper.services.discovery import Discovery
 from tulipa_app_scraper.services.scraper import TulipaScraper
 
 _DEFAULT_CSV_NAME = "produkty_komplet.csv"
+
+_BANNER = r"""
+  _______    _ _
+ |__   __|  | (_)
+    | |_   _| |_ _ __   __ _   ___  ___ _ __ __ _ _ __   ___ _ __
+    | | | | | | | '_ \ / _` | / __|/ __| '__/ _` | '_ \ / _ \ '__|
+    | | |_| | | | |_) | (_| | \__ \ (__| | | (_| | |_) |  __/ |
+    |_|\__,_|_|_| .__/ \__,_| |___/\___|_|  \__,_| .__/ \___|_|
+                | |                              | |
+                |_|                              |_|
+"""
+
+
+def _print_banner() -> None:
+    print(_BANNER, file=sys.stderr)
+    print(f"  tulipa-app-scraper  v{__version__}\n", file=sys.stderr)
 
 
 def _setup_logging(level: str) -> logging.Logger:
@@ -111,6 +128,7 @@ def _run_once(
 
 
 def main() -> int:
+    _print_banner()
     args = _build_parser().parse_args()
     logger = _setup_logging(args.log_level)
 

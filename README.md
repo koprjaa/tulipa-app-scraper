@@ -11,7 +11,7 @@
 ![lxml](https://img.shields.io/badge/lxml-5.x-555?style=flat-square)
 ![bs4](https://img.shields.io/badge/bs4-4.13-777?style=flat-square)
 
-Tulipa is a Czech wholesale florist; their B2B portal is fronted by Helios iNuvio, exposed as a JSON-RPC endpoint (`RunExternalAction`, `GetBrowse`) with session tokens, cookie auth, and opaque `ActionID` routes. The API has no documentation — every endpoint was discovered by reverse-engineering the portal UI.
+Tulipa is a Czech wholesale florist; their B2B portal is fronted by Helios iNuvio, exposed as a JSON-RPC endpoint (`RunExternalAction`, `GetBrowse`) with session tokens, cookie auth, and opaque `ActionID` routes. The API has no documentation — every endpoint was discovered by intercepting the portal with **mitmproxy** (see [How the API was mapped](#how-the-api-was-mapped) below).
 
 This scraper handles the whole flow: session acquisition and silent refresh, category and subgroup discovery, product detail + image URL extraction across five main product groups, cache with 1-hour TTL, and a `--loop` mode that re-runs every 30 minutes for keeping a downstream CSV fresh.
 
@@ -78,6 +78,33 @@ run.py                      thin shim that imports tulipa_app_scraper.cli
 ```
 
 The core scrape logic has no direct I/O — it takes a `HeliosClient` and a `Settings` and pushes structured calls through. Mocking the client is straightforward for unit testing; see `tests/` for the patterns.
+
+## How the API was mapped
+
+The Tulipa B2B portal talks to a Delphi-era Helios iNuvio backend over a JSON-RPC envelope (`THeliosMethods.Execute`). There are no API docs, no OpenAPI schema, no TypeScript types leaking in the browser bundle. Every endpoint, every `ActionID`, every parameter shape in `config.py` was reverse-engineered with **mitmproxy**.
+
+Rough playbook:
+
+1. **Install mitmproxy.** `pip install mitmproxy` (or `brew install mitmproxy`, or native installer).
+2. **Trust the mitmproxy CA** so HTTPS interception works:
+   ```bash
+   mitmproxy                              # launches TUI and generates ~/.mitmproxy/
+   # in another terminal / in the browser:
+   # import ~/.mitmproxy/mitmproxy-ca-cert.pem into the OS / browser trust store
+   ```
+3. **Route the target client through the proxy.** For a browser, use a SwitchyOmega-style extension pointing at `localhost:8080`. For a desktop app, set `HTTPS_PROXY=http://localhost:8080`.
+4. **Drive the UI manually** — click through every section (product list, categories, subgroups, product detail, images). Each click produces one or more RPC calls; mitmproxy captures them.
+5. **Sift for `RunExternalAction` and `GetBrowse` calls.** The interesting fields are:
+   - the `ActionID` GUID in the request body,
+   - the `Parameters` array shape (often `[group_name]`, sometimes `[ean_code]`, etc.),
+   - the response envelope — usually `{"result": [{"fields": {"Result": {...}, "IsError": false}}]}`.
+6. **Annotate each call** — give it a name, note the parameter signature, and record a sample response in a notes file.
+7. **Copy the `ActionID` constants into `src/tulipa_app_scraper/infrastructure/config.py`** and wrap the call sites in `HeliosClient.run_external_action()`.
+8. **When Tulipa changes something**, re-run steps 4–5; the `--test-actions` CLI flag makes it easy to verify the known endpoints still respond correctly.
+
+A faster alternative to step 4 is mitmproxy's `mitmweb` interface (browser UI over port 8081) plus filtering by `~u /datasnap/` to isolate only the RPC traffic.
+
+The `Username` / `Password` / `PluginSysName` triplet used in login is a public-client credential extracted from the same traffic capture — it's not a personal account; rotating it on their side would break every legitimate user of the B2B portal.
 
 ## Config (`.env`)
 
