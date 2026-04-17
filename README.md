@@ -1,10 +1,12 @@
-# tulipa-offers-scraper
+# tulipa-app-scraper
 
 **Extracts product and inventory data from the Tulipa B2B florist portal (Helios ERP backend) and saves it to CSV — with session management, dual scrape strategies, cache, and a loop mode for continuous refresh.**
 
 ![python](https://img.shields.io/badge/python-3.10+-3776AB?style=flat-square&logo=python&logoColor=white)
 ![license](https://img.shields.io/badge/license-MIT-A31F34?style=flat-square)
 ![status](https://img.shields.io/badge/status-active-22863A?style=flat-square)
+![ruff](https://img.shields.io/badge/lint-ruff-D7FF64?style=flat-square&logo=ruff&logoColor=black)
+![pytest](https://img.shields.io/badge/test-pytest-0A9EDC?style=flat-square&logo=pytest&logoColor=white)
 ![requests](https://img.shields.io/badge/requests-2.32-000?style=flat-square)
 ![lxml](https://img.shields.io/badge/lxml-5.x-555?style=flat-square)
 ![bs4](https://img.shields.io/badge/bs4-4.13-777?style=flat-square)
@@ -17,14 +19,17 @@ This scraper handles the whole flow: session acquisition and silent refresh, cat
 
 ```bash
 uv venv
-uv pip install -r requirements.txt
-python run.py                            # full scrape, auto-cached
-python run.py --browse                   # faster GetBrowse endpoint
-python run.py --loop                     # rerun every 30 minutes
-python run.py --output my.csv            # custom output path
-python run.py --filter-group Dekor       # only one main group
-python run.py --reset                    # force new Helios session
-python run.py --discover                 # list available categories
+uv pip install -e .                         # install package (editable)
+tulipa-scraper                              # full scrape, auto-cached
+tulipa-scraper --browse                     # faster GetBrowse endpoint
+tulipa-scraper --loop                       # rerun every 30 minutes
+tulipa-scraper --output my.csv              # custom output path
+tulipa-scraper --filter-group Dekor         # only one main group
+tulipa-scraper --reset                      # force new Helios session
+tulipa-scraper --discover                   # list available categories
+# or equivalently:
+python -m tulipa_app_scraper [flags]
+python run.py [flags]                       # backwards-compat shim
 ```
 
 ## Flags
@@ -44,6 +49,35 @@ python run.py --discover                 # list available categories
 | `--log-level` | INFO | DEBUG / INFO / WARNING / ERROR |
 | `--safety-reserve` | 5 | items held back from available stock |
 | `--reserve-threshold` | 20 | threshold for applying the reserve |
+
+## Architecture
+
+Hexagonal layout — pure domain types at the core, all I/O at the edges, services in between:
+
+```
+src/tulipa_app_scraper/
+├── domain/
+│   ├── errors.py           TulipaError / TulipaSessionExpired / TulipaAPIError
+│   └── models.py           Category, Subgroup dataclasses
+├── infrastructure/
+│   ├── config.py           Settings dataclass + env overrides
+│   ├── helios_client.py    HeliosClient — HTTP session + RPC + token cache
+│   ├── cache.py            CacheStore — dated CSV cache, TTL, cleanup
+│   └── csv_writer.py       CSVStore — CSV write/read with column ordering
+├── services/
+│   ├── scraper.py          TulipaScraper — walks groups/categories/subgroups
+│   └── discovery.py        Discovery — --discover, --list-browse, --test-actions
+├── cli.py                  argparse + main + loop
+├── __main__.py             python -m tulipa_app_scraper
+└── __init__.py
+
+tests/                      pytest — config, cache, csv_writer (16 tests)
+.github/workflows/ci.yml    ruff + pytest on 3.10/3.11/3.12 × Linux/Windows
+pyproject.toml              modern packaging with `tulipa-scraper` entry point
+run.py                      thin shim that imports tulipa_app_scraper.cli
+```
+
+The core scrape logic has no direct I/O — it takes a `HeliosClient` and a `Settings` and pushes structured calls through. Mocking the client is straightforward for unit testing; see `tests/` for the patterns.
 
 ## Config (`.env`)
 

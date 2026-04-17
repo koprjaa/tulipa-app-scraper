@@ -2,13 +2,21 @@
 # Local env file
 .env
 
-# Python cache
+# Python cache + build artefacts
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
 .Python
 *.so
+*.egg-info/
+dist/
+build/
+.coverage
+.coverage.*
+htmlcov/
+.pytest_cache/
+.ruff_cache/
 
 # Virtual environments
 venv/
