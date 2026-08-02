@@ -1,145 +1,122 @@
 # tulipa-app-scraper
 
-**Extracts product and inventory data from the Tulipa B2B florist portal (Helios ERP backend) and saves it to CSV — with session management, dual scrape strategies, cache, and a loop mode for continuous refresh.**
+Extracts product and stock data from the Tulipa B2B florist portal and writes it to CSV. The portal runs on a Helios ERP backend with no documented API.
 
 ![python](https://img.shields.io/badge/python-3.10+-3776AB?style=flat-square&logo=python&logoColor=white)
 ![license](https://img.shields.io/badge/license-MIT-A31F34?style=flat-square)
 ![status](https://img.shields.io/badge/status-active-22863A?style=flat-square)
-![ruff](https://img.shields.io/badge/lint-ruff-D7FF64?style=flat-square&logo=ruff&logoColor=black)
-![pytest](https://img.shields.io/badge/test-pytest-0A9EDC?style=flat-square&logo=pytest&logoColor=white)
-![requests](https://img.shields.io/badge/requests-2.32-000?style=flat-square)
-![lxml](https://img.shields.io/badge/lxml-5.x-555?style=flat-square)
-![bs4](https://img.shields.io/badge/bs4-4.13-777?style=flat-square)
+[![ci](https://github.com/koprjaa/tulipa-app-scraper/actions/workflows/ci.yml/badge.svg)](https://github.com/koprjaa/tulipa-app-scraper/actions/workflows/ci.yml)
 
-Tulipa is a Czech wholesale florist; their B2B portal is fronted by Helios iNuvio, exposed as a JSON-RPC endpoint (`RunExternalAction`, `GetBrowse`) with session tokens, cookie auth, and opaque `ActionID` routes. The API has no documentation — every endpoint was discovered by intercepting the portal with **mitmproxy** (see [How the API was mapped](#how-the-api-was-mapped) below).
+Tulipa is a Czech wholesale florist. A Helios iNuvio backend serves the B2B portal through a JSON-RPC endpoint with session tokens, cookie authentication, and opaque `ActionID` routes. The scraper handles the full flow: it acquires and refreshes the session, discovers the categories and subgroups, extracts the product details and image URLs across five main groups, caches the result for one hour, and can repeat the run every 30 minutes.
 
-This scraper handles the whole flow: session acquisition and silent refresh, category and subgroup discovery, product detail + image URL extraction across five main product groups, cache with 1-hour TTL, and a `--loop` mode that re-runs every 30 minutes for keeping a downstream CSV fresh.
-
-## Run
+## Install
 
 ```bash
 uv venv
-uv pip install -e .                         # install package (editable)
-tulipa-scraper                              # full scrape, auto-cached
-tulipa-scraper --browse                     # faster GetBrowse endpoint
-tulipa-scraper --loop                       # rerun every 30 minutes
-tulipa-scraper --output my.csv              # custom output path
-tulipa-scraper --filter-group Dekor         # only one main group
-tulipa-scraper --reset                      # force new Helios session
-tulipa-scraper --discover                   # list available categories
-# or equivalently:
-python -m tulipa_app_scraper [flags]
-python run.py [flags]                       # backwards-compat shim
+uv pip install -e .
 ```
 
-## Flags
-
-| flag | default | effect |
-|------|---------|--------|
-| `--output` | `produkty_komplet.csv` | CSV output path |
-| `--filter-group` | all | filter by main group (Dekor, Kveto, …) |
-| `--limit` | — | cap on number of products |
-| `--browse` | off | use `GetBrowse` instead of `RunExternalAction` (faster) |
-| `--loop` | off | rerun every 30 minutes; Ctrl+C to stop |
-| `--reset` | off | wipe the cached Helios session token |
-| `--discover` | off | enumerate available categories and exit |
-| `--list-browse` | off | list available `Browse` definitions and exit |
-| `--test-actions` | off | probe `ActionID`s with test parameters |
-| `--debug` | off | verbose debug logs |
-| `--log-level` | INFO | DEBUG / INFO / WARNING / ERROR |
-| `--safety-reserve` | 5 | items held back from available stock |
-| `--reserve-threshold` | 20 | threshold for applying the reserve |
-
-## Architecture
-
-Hexagonal layout — pure domain types at the core, all I/O at the edges, services in between:
-
-```
-src/tulipa_app_scraper/
-├── domain/
-│   ├── errors.py           TulipaError / TulipaSessionExpired / TulipaAPIError
-│   └── models.py           Category, Subgroup dataclasses
-├── infrastructure/
-│   ├── config.py           Settings dataclass + env overrides
-│   ├── helios_client.py    HeliosClient — HTTP session + RPC + token cache
-│   ├── cache.py            CacheStore — dated CSV cache, TTL, cleanup
-│   └── csv_writer.py       CSVStore — CSV write/read with column ordering
-├── services/
-│   ├── scraper.py          TulipaScraper — walks groups/categories/subgroups
-│   └── discovery.py        Discovery — --discover, --list-browse, --test-actions
-├── cli.py                  argparse + main + loop
-├── __main__.py             python -m tulipa_app_scraper
-└── __init__.py
-
-tests/                      pytest — config, cache, csv_writer (16 tests)
-.github/workflows/ci.yml    ruff + pytest on 3.10/3.11/3.12 × Linux/Windows
-pyproject.toml              modern packaging with `tulipa-scraper` entry point
-run.py                      thin shim that imports tulipa_app_scraper.cli
-```
-
-The core scrape logic has no direct I/O — it takes a `HeliosClient` and a `Settings` and pushes structured calls through. Mocking the client is straightforward for unit testing; see `tests/` for the patterns.
-
-## How the API was mapped
-
-The Tulipa B2B portal talks to a Delphi-era Helios iNuvio backend over a JSON-RPC envelope (`THeliosMethods.Execute`). There are no API docs, no OpenAPI schema, no TypeScript types leaking in the browser bundle. Every endpoint, every `ActionID`, every parameter shape in `config.py` was reverse-engineered with **mitmproxy**.
-
-Rough playbook:
-
-1. **Install mitmproxy.** `pip install mitmproxy` (or `brew install mitmproxy`, or native installer).
-2. **Trust the mitmproxy CA** so HTTPS interception works:
-   ```bash
-   mitmproxy                              # launches TUI and generates ~/.mitmproxy/
-   # in another terminal / in the browser:
-   # import ~/.mitmproxy/mitmproxy-ca-cert.pem into the OS / browser trust store
-   ```
-3. **Route the target client through the proxy.** For a browser, use a SwitchyOmega-style extension pointing at `localhost:8080`. For a desktop app, set `HTTPS_PROXY=http://localhost:8080`.
-4. **Drive the UI manually** — click through every section (product list, categories, subgroups, product detail, images). Each click produces one or more RPC calls; mitmproxy captures them.
-5. **Sift for `RunExternalAction` and `GetBrowse` calls.** The interesting fields are:
-   - the `ActionID` GUID in the request body,
-   - the `Parameters` array shape (often `[group_name]`, sometimes `[ean_code]`, etc.),
-   - the response envelope — usually `{"result": [{"fields": {"Result": {...}, "IsError": false}}]}`.
-6. **Annotate each call** — give it a name, note the parameter signature, and record a sample response in a notes file.
-7. **Copy the `ActionID` constants into `src/tulipa_app_scraper/infrastructure/config.py`** and wrap the call sites in `HeliosClient.run_external_action()`.
-8. **When Tulipa changes something**, re-run steps 4–5; the `--test-actions` CLI flag makes it easy to verify the known endpoints still respond correctly.
-
-A faster alternative to step 4 is mitmproxy's `mitmweb` interface (browser UI over port 8081) plus filtering by `~u /datasnap/` to isolate only the RPC traffic.
-
-The `Username` / `Password` / `PluginSysName` triplet used in login is a public-client credential extracted from the same traffic capture — it's not a personal account; rotating it on their side would break every legitimate user of the B2B portal.
-
-## Config (`.env`)
+Create a `.env` file in the repository root:
 
 ```ini
 HELIOS_USERNAME=your_username
 HELIOS_PASSWORD=your_password
-# Optional — override endpoints if Tulipa changes them:
+# Optional, if the endpoints change:
 # HELIOS_URL=https://...
 ```
 
-The scraper persists the Helios session token to `data/tulipa_session.json` and auto-refreshes it when it expires. No need to re-login per run.
+The scraper writes the session token to `data/tulipa_session.json` and refreshes it when it expires. You do not log in again per run.
 
-## What gets scraped
+## Use
 
-For every product across the main groups (Dekor, Kveto, …):
+```bash
+tulipa-scraper                        # full scrape, uses the cache
+tulipa-scraper --browse               # faster path, GetBrowse instead of RunExternalAction
+tulipa-scraper --loop                 # rerun every 30 minutes
+tulipa-scraper --output my.csv        # custom output path
+tulipa-scraper --filter-group Dekor   # one main group only
+tulipa-scraper --reset                # discard the cached session token
+tulipa-scraper --discover             # list the categories and exit
+```
 
-- EAN, RegCis (Helios product ID), name, main group, subgroup
-- Price, currency, VAT rate
-- Available stock, reserved stock, incoming stock
-- Product description, detail HTML
-- Image URLs (main + gallery)
-- Last stock update timestamp
+`python -m tulipa_app_scraper` and `python run.py` accept the same flags.
 
-Output: UTF-8 CSV with one row per product. Auto-named `produkty_komplet_YYYYMMDD_HHMMSS.csv` plus a stable `produkty_komplet.csv` symlink for downstream pipelines.
+Each row of the output holds the EAN, the Helios product ID, the name, the main group and subgroup, the price, the currency, the VAT rate, the available, reserved, and incoming stock, the description, the detail HTML, the image URLs, and the time of the last stock update.
 
-## Caching
+The file is named `produkty_komplet_YYYYMMDD_HHMMSS.csv`, with a stable `produkty_komplet.csv` link for downstream jobs.
 
-Every successful run caches results under `data/YYYY-MM-DD/`. A subsequent run within 1 hour loads from cache instead of re-scraping. `--output` with a custom name bypasses cache read.
+Every successful run caches its result under `data/YYYY-MM-DD/`. A run inside the next hour reads the cache instead of the portal. A custom `--output` name skips the cache read.
 
-## Known limits
+## Options
 
-- **Helios token expires unpredictably** — the scraper handles refresh on 401/403 responses but an invalidated cookie mid-run still aborts the current iteration (the next `--loop` tick will recover).
-- **Session-based, not API-key based** — authenticated as a human user, so credential hygiene matters. Use a dedicated service account with read-only permissions.
-- **ActionID coupling** — hardcoded `ActionID` constants in `run.py`. If Tulipa restructures its portal, these break and must be re-discovered via `--test-actions` / `--list-browse`.
-- **Single-threaded** — one request at a time, by design (Helios doesn't like concurrent sessions from the same user).
+| Flag | Default | Effect |
+|---|---|---|
+| `--output` | `produkty_komplet.csv` | CSV output path. |
+| `--filter-group` | all | Filter by main group, such as Dekor or Kveto. |
+| `--limit` | none | Maximum number of products. |
+| `--browse` | off | Use `GetBrowse` instead of `RunExternalAction`. |
+| `--loop` | off | Rerun every 30 minutes. Stop with Ctrl+C. |
+| `--reset` | off | Discard the cached Helios session token. |
+| `--discover` | off | List the categories and exit. |
+| `--list-browse` | off | List the `Browse` definitions and exit. |
+| `--test-actions` | off | Probe the `ActionID` values with test parameters. |
+| `--debug` | off | Verbose debug logging. |
+| `--log-level` | `INFO` | One of DEBUG, INFO, WARNING, ERROR. |
+| `--safety-reserve` | 5 | Items held back from the available stock. |
+| `--reserve-threshold` | 20 | Stock level at which the reserve applies. |
+
+## How it works
+
+The layout is hexagonal. Domain types sit at the core, all input and output sits at the edges, and the services sit between them.
+
+```
+src/tulipa_app_scraper/
+  domain/errors.py             TulipaError, TulipaSessionExpired, TulipaAPIError
+  domain/models.py             Category and Subgroup dataclasses
+  infrastructure/config.py     Settings dataclass with environment overrides
+  infrastructure/helios_client.py  HTTP session, RPC calls, token cache
+  infrastructure/cache.py      Dated CSV cache with a TTL
+  infrastructure/csv_writer.py CSV read and write with column ordering
+  services/scraper.py          Walks the groups, categories, and subgroups
+  services/discovery.py        Backs --discover, --list-browse, --test-actions
+  cli.py                       argparse, main, loop
+```
+
+The scrape logic performs no input or output of its own. It takes a `HeliosClient` and a `Settings` object. A test can replace the client with a mock. See `tests/` for the pattern.
+
+## How the API was mapped
+
+The Helios iNuvio backend accepts a JSON-RPC envelope (`THeliosMethods.Execute`). There are no API documents, no OpenAPI schema, and no types in the browser bundle. Every endpoint, every `ActionID`, and every parameter shape in `config.py` came from traffic capture with mitmproxy.
+
+1. Install mitmproxy with `pip install mitmproxy`.
+2. Run `mitmproxy` once to generate `~/.mitmproxy/`, then import `mitmproxy-ca-cert.pem` into the trust store of the operating system or the browser.
+3. Send the client through the proxy. A browser needs a proxy extension pointed at `localhost:8080`. A desktop application needs `HTTPS_PROXY=http://localhost:8080`.
+4. Click through every section of the portal by hand: product list, categories, subgroups, product detail, images. Each click produces RPC calls, and mitmproxy records them.
+5. Filter for `RunExternalAction` and `GetBrowse` calls. Read the `ActionID` value in the request body, the shape of the `Parameters` array, and the response envelope, which usually looks like `{"result": [{"fields": {"Result": {...}, "IsError": false}}]}`.
+6. Name each call, note its parameter signature, and save a sample response.
+7. Copy the `ActionID` constants into `infrastructure/config.py` and wrap the call sites in `HeliosClient.run_external_action()`.
+8. After a portal change, repeat steps 4 and 5. The `--test-actions` flag checks whether the known endpoints still answer.
+
+`mitmweb` on port 8081 is faster than step 4. Filter it with `~u /datasnap/` to isolate the RPC traffic.
+
+The `Username`, `Password`, and `PluginSysName` triplet in the login call is a public client credential taken from the same capture. It is not a personal account. Rotating it would break every user of the B2B portal.
+
+## Limits
+
+- The Helios token expires without a pattern. The scraper refreshes on a 401 or 403, but a cookie invalidated mid-run still ends the current iteration. The next `--loop` tick recovers.
+- Authentication is session based, not key based, so the scraper acts as a human user. Use a dedicated read-only account.
+- The `ActionID` constants are fixed in the source. A portal restructure breaks them, and you rediscover them with `--test-actions` and `--list-browse`.
+- One request at a time, by design. Helios rejects concurrent sessions from the same user.
+
+## Development
+
+```bash
+uv pip install -e ".[dev]"
+pytest -q
+ruff check .
+```
+
+CI runs ruff and pytest on Python 3.10, 3.11, and 3.12, on Linux and Windows. The suite covers config, cache, and the CSV writer.
 
 ## License
 
