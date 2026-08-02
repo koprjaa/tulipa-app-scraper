@@ -1,3 +1,17 @@
+#
+# Project: tulipa-app-scraper
+# File:    cli.py
+#
+# Description:
+# Command line interface: argument parsing, the single run, and the repeating loop mode.
+#
+# Author:
+# Jan Alexandr Kopřiva
+# jan.alexandr.kopriva@gmail.com
+#
+# License: MIT
+#
+
 """CLI entry point — argparse + main workflow + loop mode."""
 from __future__ import annotations
 

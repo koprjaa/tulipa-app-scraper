@@ -1,3 +1,17 @@
+#
+# Project: tulipa-app-scraper
+# File:    helios_client.py
+#
+# Description:
+# HTTP and session layer for the Tulipa Helios endpoint, including login and session renewal.
+#
+# Author:
+# Jan Alexandr Kopřiva
+# jan.alexandr.kopriva@gmail.com
+#
+# License: MIT
+#
+
 """HTTP + session layer for the Tulipa Helios endpoint.
 
 Wraps everything external into one class: `HeliosClient` owns the

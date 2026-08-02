@@ -1,3 +1,17 @@
+#
+# Project: tulipa-app-scraper
+# File:    models.py
+#
+# Description:
+# Dataclasses for a product category and a subgroup.
+#
+# Author:
+# Jan Alexandr Kopřiva
+# jan.alexandr.kopriva@gmail.com
+#
+# License: MIT
+#
+
 """Lightweight domain dataclasses.
 
 Product rows stay as plain dicts because Helios returns heterogeneous fields per

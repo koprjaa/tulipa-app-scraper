@@ -1,3 +1,17 @@
+#
+# Project: tulipa-app-scraper
+# File:    config.py
+#
+# Description:
+# Settings: endpoint URL, credentials, timeouts, paths, and the Helios action IDs.
+#
+# Author:
+# Jan Alexandr Kopřiva
+# jan.alexandr.kopriva@gmail.com
+#
+# License: MIT
+#
+
 """Centralised configuration — URL, credentials, timeouts, paths, ActionIDs.
 
 Defaults are copied from the reverse-engineered Tulipa B2B client. Any of them

@@ -1,3 +1,17 @@
+#
+# Project: tulipa-app-scraper
+# File:    test_cache.py
+#
+# Description:
+# Tests for the cache: path generation, freshness, and cleanup.
+#
+# Author:
+# Jan Alexandr Kopřiva
+# jan.alexandr.kopriva@gmail.com
+#
+# License: MIT
+#
+
 """Unit tests for CacheStore — path generation, freshness, cleanup."""
 from datetime import datetime, timedelta
 

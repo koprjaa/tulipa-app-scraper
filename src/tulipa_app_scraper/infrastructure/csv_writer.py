@@ -1,3 +1,17 @@
+#
+# Project: tulipa-app-scraper
+# File:    csv_writer.py
+#
+# Description:
+# Reads and writes the scraped product rows as CSV.
+#
+# Author:
+# Jan Alexandr Kopřiva
+# jan.alexandr.kopriva@gmail.com
+#
+# License: MIT
+#
+
 """CSV serialisation and de-serialisation for scraped product rows."""
 from __future__ import annotations
 

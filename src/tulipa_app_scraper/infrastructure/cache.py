@@ -1,3 +1,17 @@
+#
+# Project: tulipa-app-scraper
+# File:    cache.py
+#
+# Description:
+# File cache for the scraped product CSVs, keyed by date folder.
+#
+# Author:
+# Jan Alexandr Kopřiva
+# jan.alexandr.kopriva@gmail.com
+#
+# License: MIT
+#
+
 """File-based cache for scraped product CSVs, keyed by date folder."""
 from __future__ import annotations
 

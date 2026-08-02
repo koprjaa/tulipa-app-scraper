@@ -1,3 +1,17 @@
+#
+# Project: tulipa-app-scraper
+# File:    test_csv_writer.py
+#
+# Description:
+# Tests for the CSV round trip and for the key column ordering.
+#
+# Author:
+# Jan Alexandr Kopřiva
+# jan.alexandr.kopriva@gmail.com
+#
+# License: MIT
+#
+
 """Unit tests for CSVStore — round-trip, key-column ordering, empty input."""
 
 import pytest

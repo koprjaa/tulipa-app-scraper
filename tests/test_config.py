@@ -1,3 +1,17 @@
+#
+# Project: tulipa-app-scraper
+# File:    test_config.py
+#
+# Description:
+# Tests for the settings: defaults, environment overrides, and URL composition.
+#
+# Author:
+# Jan Alexandr Kopřiva
+# jan.alexandr.kopriva@gmail.com
+#
+# License: MIT
+#
+
 """Unit tests for Settings — defaults, env overrides, full_url composition."""
 
 

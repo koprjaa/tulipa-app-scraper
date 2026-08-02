@@ -1,3 +1,17 @@
+#
+# Project: tulipa-app-scraper
+# File:    errors.py
+#
+# Description:
+# The error types the Helios client and the scrape services raise.
+#
+# Author:
+# Jan Alexandr Kopřiva
+# jan.alexandr.kopriva@gmail.com
+#
+# License: MIT
+#
+
 """Typed error hierarchy for Tulipa/Helios operations."""
 
 

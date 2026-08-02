@@ -1,3 +1,17 @@
+#
+# Project: tulipa-app-scraper
+# File:    discovery.py
+#
+# Description:
+# Helpers for exploring the Helios endpoint. Not part of the scrape path.
+#
+# Author:
+# Jan Alexandr Kopřiva
+# jan.alexandr.kopriva@gmail.com
+#
+# License: MIT
+#
+
 """Discovery / debugging helpers — not part of the core scrape path.
 
 Used by `--discover`, `--list-browse`, `--test-actions` CLI modes to poke at the

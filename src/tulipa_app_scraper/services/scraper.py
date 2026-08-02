@@ -1,3 +1,17 @@
+#
+# Project: tulipa-app-scraper
+# File:    scraper.py
+#
+# Description:
+# Walks the groups, subgroups, and categories and collects every product row.
+#
+# Author:
+# Jan Alexandr Kopřiva
+# jan.alexandr.kopriva@gmail.com
+#
+# License: MIT
+#
+
 """High-level scrape orchestration — walks groups, subgroups, and categories.
 
 Two entry points:

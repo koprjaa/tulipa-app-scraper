@@ -1,4 +1,18 @@
 #!/usr/bin/env python3
+#
+# Project: tulipa-app-scraper
+# File:    run.py
+#
+# Description:
+# Entry shim that keeps `python run.py` working.
+#
+# Author:
+# Jan Alexandr Kopřiva
+# jan.alexandr.kopriva@gmail.com
+#
+# License: MIT
+#
+
 """Thin entry shim for backwards compatibility with `python run.py ...`.
 
 All logic lives under `src/tulipa_app_scraper/`. You can also invoke:
