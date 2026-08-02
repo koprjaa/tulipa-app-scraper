@@ -23,10 +23,10 @@ classifiers = [
     "Topic :: Internet :: WWW/HTTP",
 ]
 dependencies = [
-    "requests>=2.32.0",
+    "requests>=2.33.0",
     "beautifulsoup4>=4.13.0",
-    "lxml>=5.0.0",
-    "python-dotenv>=1.0.1",
+    "lxml>=6.1.0",
+    "python-dotenv>=1.2.2",
 ]
 
 [project.optional-dependencies]
