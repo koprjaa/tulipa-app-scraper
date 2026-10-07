@@ -26,12 +26,16 @@ import json
 import logging
 import time
 from datetime import datetime, timedelta
+from pathlib import Path
 
 import requests
-from requests.packages.urllib3.exceptions import InsecureRequestWarning  # type: ignore[attr-defined]
 
 from tulipa_app_scraper.domain.errors import TulipaAPIError, TulipaSessionExpired
 from tulipa_app_scraper.infrastructure.config import Settings
+
+# The Helios server does not send its intermediate certificate, so the default CA
+# store cannot verify it. Trust the pinned RapidSSL/DigiCert chain (see the file header).
+CA_BUNDLE = Path(__file__).with_name("tulipa_ca.pem")
 
 
 class HeliosClient:
@@ -49,7 +53,6 @@ class HeliosClient:
                 "Accept-Encoding": "gzip, deflate, br",
             }
         )
-        requests.packages.urllib3.disable_warnings(InsecureRequestWarning)  # type: ignore[attr-defined]
 
         self._session_token: str | None = None
         self._session_expires: datetime | None = None
@@ -120,7 +123,7 @@ class HeliosClient:
             response = self._http.post(
                 self.settings.full_url,
                 data=json.dumps(payload),
-                verify=False,  # Tulipa uses self-signed cert
+                verify=str(CA_BUNDLE),
                 timeout=self.settings.request_timeout,
             )
             response.raise_for_status()
