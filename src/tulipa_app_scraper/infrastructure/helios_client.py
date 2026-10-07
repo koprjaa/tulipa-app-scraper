@@ -24,6 +24,7 @@ import gzip
 import io
 import json
 import logging
+import os
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -252,9 +253,12 @@ class HeliosClient:
             "expires_at": self._session_expires.isoformat(),
             "estimated_timeout": str(self._session_expires - datetime.now()),
         }
-        self.settings.session_file.write_text(
-            json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8"
-        )
+        # Session token je přihlašovací údaj: soubor jen pro vlastníka (0600), i když už existoval s volnějšími právy.
+        path = self.settings.session_file
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(json.dumps(data, indent=2, ensure_ascii=False))
+        os.chmod(path, 0o600)
         self.logger.info(f"Session token saved to {self.settings.session_file}")
 
     @staticmethod
