@@ -99,6 +99,13 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def select_products(products: list[dict], group: str | None, limit: int | None) -> list[dict]:
+    """Apply --filter-group (case-insensitive match on HlavniSkupina) and --limit."""
+    if group:
+        products = [p for p in products if p.get("HlavniSkupina", "").casefold() == group.casefold()]
+    return products[:limit] if limit else products
+
+
 def _run_once(
     args: argparse.Namespace,
     client: HeliosClient,
@@ -110,7 +117,12 @@ def _run_once(
     """One scrape → CSV cycle. Returns exit code."""
     try:
         csv_file = Path(args.output) if args.output != _DEFAULT_CSV_NAME else None
-        latest = cache.find_latest() if csv_file is None else (csv_file if csv_file.exists() else None)
+        # Výřez (--filter-group / --limit) nesmí číst ani plnit cache úplného exportu.
+        partial = bool(args.filter_group or args.limit)
+        cache_base = "produkty_vyber" if partial else "produkty_komplet"
+        latest = None
+        if not partial:
+            latest = cache.find_latest() if csv_file is None else (csv_file if csv_file.exists() else None)
 
         if latest is not None and cache.is_fresh(latest, max_age_hours=1):
             logger.info(f"Fresh cache found: {latest} — skipping scrape")
@@ -120,16 +132,18 @@ def _run_once(
         products = (
             scraper.scrape_via_browse() if args.browse else scraper.scrape_via_actions()
         )
+        # ponytail: filtruje se až po úplném scrapu (~1 min); zúžit samotný scrape, až to bude pomalé.
+        products = select_products(products, args.filter_group, args.limit)
         if not products:
             logger.error("No products scraped; aborting")
             return 1
 
-        output_path = csv_file or cache.new_cache_path()
+        output_path = csv_file or cache.new_cache_path(cache_base)
         if not csv_store.write(products, output_path):
             logger.error("CSV write failed")
             return 1
 
-        cache.cleanup_old()
+        cache.cleanup_old(cache_base)
         logger.info("Workflow finished")
         return 0
 
@@ -161,6 +175,7 @@ def main() -> int:
 
     if args.discover:
         logger.info("Discovery mode")
+        client.activate_database()
         results = Discovery(client, settings, logger).discover_categories()
         found = [name for name, info in results.items() if info.get("exists")]
         logger.info(f"Found {len(found)} categories: {found}")

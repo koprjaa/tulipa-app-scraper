@@ -66,7 +66,6 @@ class TulipaScraper:
         self.logger.info("=== Phase 1: scrape via RunExternalAction ===")
         self.client.activate_database()
 
-        additional_categories = self._fetch_additional_categories()
         extra_products = self._fetch_extra_products()
         category_products = self._fetch_products_for_known_categories()
         all_category_products = self._fetch_all_products_from_categories()
@@ -78,7 +77,6 @@ class TulipaScraper:
         combined.extend(extra_products)
         combined.extend(category_products)
         combined.extend(all_category_products)
-        combined.extend(self._synthesize_category_rows(additional_categories))
         return combined
 
     # ====================================================================
@@ -195,34 +193,6 @@ class TulipaScraper:
         self.logger.info(f"  Got {len(extra_products)} extra products")
         return extra_products
 
-    def _fetch_additional_categories(self) -> dict[str, dict[str, Any]]:
-        self.logger.info("Fetching additional categories with counts...")
-        response = self.client.run_external_action(
-            self.settings.action_kategorie_300, parameters=["300"]
-        )
-        if not HeliosClient.is_success(response):
-            return {}
-        try:
-            rows = response["result"][0]["fields"]["Result"]["table"]["rows"]  # type: ignore[index]
-        except (KeyError, IndexError, TypeError):
-            return {}
-        categories: dict[str, dict[str, Any]] = {}
-        for row in rows:
-            try:
-                cat_id = row[0].get("Value", "")
-                cat_code = row[1].get("Value", "")
-                cat_name = row[2].get("Value", "")
-                count = row[3].get("Value", "0")
-                categories[cat_code] = {
-                    "id": cat_id,
-                    "name": cat_name,
-                    "count": int(count) if count.isdigit() else 0,
-                }
-            except (IndexError, KeyError, ValueError):
-                continue
-        self.logger.info(f"  Got {len(categories)} additional categories")
-        return categories
-
     def _fetch_all_products_from_categories(self) -> list[dict]:
         """Walk every additional category → every subgroup → every product."""
         self.logger.info("Fetching all products via category workflow...")
@@ -294,36 +264,6 @@ class TulipaScraper:
         rows = self._extract_rows(result)
         return [self._row_to_dict(row) for row in (rows or [])]
 
-    @staticmethod
-    def _synthesize_category_rows(
-        additional_categories: dict[str, dict[str, Any]],
-    ) -> list[dict]:
-        """Produce synthetic CSV rows that represent each category as its own entity."""
-        rows: list[dict] = []
-        for code, info in additional_categories.items():
-            rows.append(
-                {
-                    "HlavniSkupina": "Kategorie",
-                    "PodskupinaKod": code,
-                    "PodskupinaNazev": info["name"],
-                    "Nazev1": f"KATEGORIE: {info['name']}",
-                    "RegCis": f"CAT_{code}",
-                    "_cena_cu1": "0",
-                    "Mnozstvi": str(info["count"]),
-                    "ID": info["id"],
-                    "JizNaSklade": str(info["count"]),
-                    "K1": code,
-                    "K2": info["name"],
-                    "Nazev": f"KATEGORIE: {info['name']}",
-                    "NazevK1": code,
-                    "NazevK2": info["name"],
-                    "PrepMnozstvi": str(info["count"]),
-                    "SkupZbo": code,
-                    "_Tulipa_Zkratka": code,
-                }
-            )
-        return rows
-
     # ====================================================================
     # Low-level helpers for response parsing
     # ====================================================================
@@ -362,4 +302,9 @@ class TulipaScraper:
 
     @staticmethod
     def _row_to_dict(row: list[dict]) -> dict:
-        return {field.get("FieldName", ""): field.get("Value", "") for field in row}
+        product = {field.get("FieldName", ""): field.get("Value", "") for field in row}
+        # Helios vrací část cen s desetinnou čárkou ("7,5"), zbytek jako celá čísla; sjednotit na tečku.
+        for key, value in product.items():
+            if key.startswith("_cena_cu") and isinstance(value, str):
+                product[key] = value.replace(",", ".")
+        return product

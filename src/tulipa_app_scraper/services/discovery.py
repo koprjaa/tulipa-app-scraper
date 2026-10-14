@@ -61,12 +61,12 @@ class Discovery:
             try:
                 rows = response["result"][0]["fields"]["Result"]["table"]["rows"]  # type: ignore[index]
             except (KeyError, IndexError, TypeError):
-                found[candidate] = {"exists": True, "subgroups_count": "unknown"}
-                continue
-            sample = [r[2]["Value"] for r in rows[:3] if len(r) > 2] if rows else []
+                rows = []
+            # Helios na neznámý název neodpoví chybou, ale prázdnou tabulkou.
+            sample = [r[2]["Value"] for r in rows[:3] if len(r) > 2]
             found[candidate] = {
-                "exists": True,
-                "subgroups_count": len(rows) if rows else 0,
+                "exists": bool(rows),
+                "subgroups_count": len(rows),
                 "sample_subgroups": sample,
             }
             time.sleep(0.1)
