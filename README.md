@@ -7,7 +7,7 @@ Extracts product and stock data from the Tulipa B2B florist portal and writes it
 ![status](https://img.shields.io/badge/status-active-22863A?style=flat-square)
 [![ci](https://github.com/koprjaa/tulipa-app-scraper/actions/workflows/ci.yml/badge.svg)](https://github.com/koprjaa/tulipa-app-scraper/actions/workflows/ci.yml)
 
-Tulipa is a Czech wholesale florist. A Helios iNuvio backend serves the B2B portal through a JSON-RPC endpoint with session tokens, cookie authentication, and opaque `ActionID` routes. The scraper handles the full flow: it acquires and refreshes the session, discovers the categories and subgroups, extracts the product details and image URLs across five main groups, caches the result for one hour, and can repeat the run every 30 minutes.
+Tulipa is a Czech wholesale florist. A Helios iNuvio backend serves the B2B portal through a JSON-RPC endpoint with session tokens, cookie authentication, and opaque `ActionID` routes. The scraper handles the full flow: it acquires and refreshes the session, discovers the categories and subgroups, walks every main group (category series 200, read live from the server), the cut flowers (series 100), and the florist supplies (series 300), checks each category against the count the server reports, caches the result for one hour, and can repeat the run every 30 minutes.
 
 ## Install
 
@@ -41,7 +41,7 @@ tulipa-scraper --discover             # list the categories and exit
 
 `python -m tulipa_app_scraper` and `python run.py` accept the same flags.
 
-Each row of the output holds the EAN, the Helios product ID, the name, the main group and subgroup, the price, the currency, the VAT rate, the available, reserved, and incoming stock, the description, the detail HTML, the image URLs, and the time of the last stock update.
+Each row holds the main group and subgroup, the Helios fields as the server returns them (`ID`, `RegCis`, `_EAN`, `Nazev1`, the four price levels `_cena_cu1`–`_cena_cu4` with a decimal point, the stock `Mnozstvi`, and the Tulipa attributes such as size and the image URL), one row per EAN. The `HlavniSkupina` column holds the main group code (`Dekor`, `Orchi`, …), `Řezané` for cut flowers, or `Kategorie` for florist supplies.
 
 The file is named `produkty_komplet_YYYYMMDD_HHMMSS.csv`, with a stable `produkty_komplet.csv` link for downstream jobs.
 
@@ -52,9 +52,9 @@ Every successful run caches its result under `data/YYYY-MM-DD/`. A run inside th
 | Flag | Default | Effect |
 |---|---|---|
 | `--output` | `produkty_komplet.csv` | CSV output path. |
-| `--filter-group` | all | Filter by main group, such as Dekor or Kveto. |
+| `--filter-group` | all | Keep one `HlavniSkupina` value, such as Dekor or Kategorie. Filtered and limited runs bypass the cache. |
 | `--limit` | none | Maximum number of products. |
-| `--browse` | off | Use `GetBrowse` instead of `RunExternalAction`. |
+| `--browse` | off | Use `GetBrowse` instead of `RunExternalAction`. The server currently answers „Přehled nenalezen“, so the run falls back to the full path. |
 | `--loop` | off | Rerun every 30 minutes. Stop with Ctrl+C. |
 | `--reset` | off | Discard the cached Helios session token. |
 | `--discover` | off | List the categories and exit. |

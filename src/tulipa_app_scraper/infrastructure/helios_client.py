@@ -149,13 +149,19 @@ class HeliosClient:
         action_id: str,
         parameters: list | None = None,
     ) -> dict | None:
-        """Run `RunExternalAction` with automatic one-shot token refresh on session errors."""
+        """Run `RunExternalAction` with automatic one-shot token refresh on session errors.
+
+        Helios odpoví daty jen na první dotaz po `ChangeDatabase`, každý další vrátí
+        prázdnou tabulku bez chyby. Proto se databáze nastavuje před každou akcí.
+        """
+        self.activate_database()
         payload = self._build_action_payload(action_id, parameters, self.get_token())
         response = self.call(payload)
         if self._is_token_error(response):
             self.logger.warning("Token error — refreshing and retrying once")
             self._session_token = None
             self._session_expires = None
+            self.activate_database()
             payload["_parameters"][0] = self.get_token()
             response = self.call(payload)
         return response

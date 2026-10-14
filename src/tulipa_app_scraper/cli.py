@@ -175,7 +175,6 @@ def main() -> int:
 
     if args.discover:
         logger.info("Discovery mode")
-        client.activate_database()
         results = Discovery(client, settings, logger).discover_categories()
         found = [name for name, info in results.items() if info.get("exists")]
         logger.info(f"Found {len(found)} categories: {found}")
@@ -183,7 +182,6 @@ def main() -> int:
 
     if args.test_actions:
         logger.info("Test-actions mode")
-        client.activate_database()
         results = Discovery(client, settings, logger).test_action_ids()
         passed = sum(1 for r in results.values() if r["success"])
         logger.info(f"Test summary: {passed}/{len(results)} passed")

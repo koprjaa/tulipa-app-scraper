@@ -26,7 +26,7 @@ def test_defaults_have_required_fields():
     assert s.password
     assert s.request_timeout > 0
     assert len(s.main_groups) > 0
-    assert len(s.known_categories) > 0
+    assert set(s.category_series) == {"100", "300"}
     assert len(s.action_subgroups) == 36  # GUID format
     assert s.session_timeout_minutes > 0
 

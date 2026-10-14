@@ -43,8 +43,13 @@ class Settings:
     data_dir: Path = field(default_factory=lambda: Path("data"))
     session_file: Path = field(default_factory=lambda: Path("data") / "tulipa_session.json")
 
-    # ----- Main groups to iterate -----
+    # ----- Main groups to iterate (fallback; live list comes from category series 200) -----
     main_groups: tuple[str, ...] = ("Dekor", "Kveto", "Sezón", "Sukul")
+
+    # ----- Category series walked category → subgroup → product, with the HlavniSkupina label -----
+    category_series: dict[str, str] = field(
+        default_factory=lambda: {"100": "Řezané", "300": "Kategorie"}
+    )
 
     # ----- ActionIDs (reverse-engineered) -----
     action_subgroups: str = "7C100193-68DF-4C59-8692-33E421EEBCD3"
@@ -56,13 +61,6 @@ class Settings:
     action_product_details: str = "9752DF9E-E95E-46F2-97F8-11F96ABEB71C"
     action_product_images: str = "982F0820-87A5-4F22-A2E9-724E14C208E1"
     browse_name_products: str = "82"
-
-    # ----- Known "extra" categories (for fetch_products_for_categories) -----
-    known_categories: tuple[str, ...] = (
-        "Aranž", "Deko", "Dráty", "Fólie", "Funkč", "Hnoji", "Lesky", "Nářad",
-        "Obaly", "Osiva", "Ostat", "Papír", "Pásky", "Rafie", "Manip", "Sklo",
-        "Stuhy", "Subst", "Svíčk", "Špend", "Výživ",
-    )
 
     # ----- Inventory reserve (used by downstream consumers via CLI flags) -----
     safety_reserve: int = 5

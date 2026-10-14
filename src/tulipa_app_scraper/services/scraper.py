@@ -64,20 +64,20 @@ class TulipaScraper:
     def scrape_via_actions(self) -> list[dict]:
         """Exhaustive path — several sweeps across main groups + categories."""
         self.logger.info("=== Phase 1: scrape via RunExternalAction ===")
-        self.client.activate_database()
-
-        extra_products = self._fetch_extra_products()
-        category_products = self._fetch_products_for_known_categories()
-        all_category_products = self._fetch_all_products_from_categories()
-
-        main_group_products = self._fetch_main_group_products()
 
         combined: list[dict] = []
-        combined.extend(main_group_products)
-        combined.extend(extra_products)
-        combined.extend(category_products)
-        combined.extend(all_category_products)
-        return combined
+        combined.extend(self._fetch_main_group_products())
+        combined.extend(self._fetch_extra_products())
+        for series, label in self.settings.category_series.items():
+            combined.extend(self._fetch_all_products_from_categories(series, label))
+
+        # Tentýž produkt může přijít z víc průchodů (Extra má jiné ID, ale stejný EAN);
+        # nechat první, nejúplnější výskyt.
+        unique: dict[str, dict] = {}
+        for product in combined:
+            unique.setdefault(product.get("_EAN") or product.get("ID") or str(id(product)), product)
+        self.logger.info(f"Collected {len(unique)} unique products ({len(combined)} rows before dedup)")
+        return list(unique.values())
 
     # ====================================================================
     # Main groups → subgroups → products
@@ -85,12 +85,12 @@ class TulipaScraper:
 
     def _fetch_main_group_products(self) -> list[dict]:
         products: list[dict] = []
-        for group in self.settings.main_groups:
+        # Hlavní skupiny jsou kategorie řady 200; seznam natvrdo jen jako záloha, když server neodpoví.
+        groups = [c["K1"] for c in self._fetch_category_list("200")] or list(self.settings.main_groups)
+        for group in groups:
             self.logger.info(f"Main group: {group}")
-            self.client.activate_database()
             subgroups = self._fetch_subgroups(group)
             for subgroup_code, subgroup_name in subgroups.items():
-                self.client.activate_database()
                 for product in self._fetch_products(group, subgroup_code, subgroup_name):
                     product["HlavniSkupina"] = group
                     product["PodskupinaKod"] = subgroup_code
@@ -141,32 +141,6 @@ class TulipaScraper:
     # Known extra categories + misc sweeps
     # ====================================================================
 
-    def _fetch_products_for_known_categories(self) -> list[dict]:
-        self.logger.info("Fetching products for known categories...")
-        all_products: list[dict] = []
-        for category in self.settings.known_categories:
-            self.logger.info(f"  Category: {category}")
-            response = self.client.run_external_action(
-                self.settings.action_products, parameters=[category, category]
-            )
-            if not HeliosClient.is_success(response):
-                continue
-            try:
-                rows = response["result"][0]["fields"]["Result"]["table"]["rows"]  # type: ignore[index]
-            except (KeyError, IndexError, TypeError):
-                continue
-            for row in rows:
-                try:
-                    product = self._row_to_dict(row)
-                except (IndexError, KeyError, TypeError):
-                    continue
-                product["HlavniSkupina"] = "Kategorie"
-                product["PodskupinaKod"] = category
-                product["PodskupinaNazev"] = category
-                all_products.append(product)
-        self.logger.info(f"  Collected {len(all_products)} products from known categories")
-        return all_products
-
     def _fetch_extra_products(self) -> list[dict]:
         self.logger.info("Fetching extra products from browse metadata...")
         response = self.client.run_external_action(
@@ -178,10 +152,8 @@ class TulipaScraper:
             result = response["result"][0]["fields"]["Result"]  # type: ignore[index]
         except (KeyError, IndexError, TypeError):
             return []
-        if not (isinstance(result, dict) and "table" in result):
-            return []
         extra_products: list[dict] = []
-        for row in result["table"]["rows"]:
+        for row in self._extract_rows(result) or []:
             try:
                 product = self._row_to_dict(row)
             except (IndexError, KeyError, TypeError):
@@ -193,35 +165,33 @@ class TulipaScraper:
         self.logger.info(f"  Got {len(extra_products)} extra products")
         return extra_products
 
-    def _fetch_all_products_from_categories(self) -> list[dict]:
-        """Walk every additional category → every subgroup → every product."""
-        self.logger.info("Fetching all products via category workflow...")
+    def _fetch_category_list(self, series: str) -> list[dict]:
+        """Categories of one series (100 cut flowers, 200 main groups, 300 florist supplies) with stock."""
         response = self.client.run_external_action(
-            self.settings.action_kategorie_300, parameters=["300"]
+            self.settings.action_kategorie_300, parameters=[series]
         )
         if not HeliosClient.is_success(response):
+            self.logger.warning(f"  Failed to fetch category series {series}")
             return []
-        try:
-            cat_rows = response["result"][0]["fields"]["Result"]["table"]["rows"]  # type: ignore[index]
-        except (KeyError, IndexError, TypeError):
-            return []
+        rows = self._extract_rows(response["result"][0]["fields"].get("Result")) or []  # type: ignore[index]
+        categories = [self._row_to_dict(row) for row in rows]
+        return [c for c in categories if c.get("K1") and str(c.get("Pocet", "")).isdigit() and int(c["Pocet"]) > 0]
 
+    def _fetch_all_products_from_categories(self, series: str, label: str) -> list[dict]:
+        """Walk every category of a series → every subgroup → every product."""
+        self.logger.info(f"Fetching all products via category series {series} ({label})...")
         products: list[dict] = []
-        for row in cat_rows:
-            try:
-                cat_code = row[1].get("Value", "")
-                cat_name = row[2].get("Value", "")
-                count = row[3].get("Value", "0")
-            except (IndexError, KeyError):
-                continue
-            if not count or not count.isdigit() or int(count) == 0:
-                continue
-            self.logger.info(f"  Category: {cat_code} — {cat_name} ({count} products)")
-            products.extend(self._walk_category_subgroups(cat_code, cat_name))
-        self.logger.info(f"  Total {len(products)} products across categories")
+        for category in self._fetch_category_list(series):
+            cat_code, cat_name, expected = category["K1"], category.get("K1Name", ""), int(category["Pocet"])
+            self.logger.info(f"  Category: {cat_code} — {cat_name} ({expected} products)")
+            got = self._walk_category_subgroups(cat_code, cat_name, label)
+            if len(got) < expected:
+                self.logger.warning(f"  Category {cat_code}: server reports {expected}, collected {len(got)}")
+            products.extend(got)
+        self.logger.info(f"  Total {len(products)} products in series {series}")
         return products
 
-    def _walk_category_subgroups(self, cat_code: str, cat_name: str) -> list[dict]:
+    def _walk_category_subgroups(self, cat_code: str, cat_name: str, label: str) -> list[dict]:
         response = self.client.run_external_action(
             self.settings.action_subgroups, parameters=[cat_code]
         )
@@ -243,7 +213,7 @@ class TulipaScraper:
             if not subgroup_code:
                 continue
             for p in self._fetch_products_for_subgroup(cat_code, subgroup_code, subgroup_name or ""):
-                p["HlavniSkupina"] = "Kategorie"
+                p["HlavniSkupina"] = label
                 p["PodskupinaKod"] = cat_code
                 p["PodskupinaNazev"] = subgroup_name or cat_name
                 results.append(p)

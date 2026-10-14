@@ -59,3 +59,20 @@ def test_session_token_file_is_owner_only(tmp_path):
     client._save_token_to_disk()
 
     assert stat.S_IMODE(session.stat().st_mode) == 0o600
+
+
+def test_every_action_is_preceded_by_change_database(monkeypatch):
+    # Helios vrátí data jen na první dotaz po ChangeDatabase, další dotazy tiše prázdné.
+    from datetime import datetime, timedelta
+
+    client = helios_client.HeliosClient(Settings())
+    client._session_token = "t"
+    client._session_expires = datetime.now() + timedelta(minutes=5)
+    methods = []
+    monkeypatch.setattr(client, "call", lambda payload, **_: methods.append(payload["_parameters"][1]))
+    monkeypatch.setattr(helios_client.time, "sleep", lambda _: None)
+
+    client.run_external_action("A")
+    client.run_external_action("B")
+
+    assert methods == ["ChangeDatabase", "RunExternalAction", "ChangeDatabase", "RunExternalAction"]
