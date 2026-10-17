@@ -13,6 +13,7 @@
 #
 
 """CLI entry point — argparse + main workflow + loop mode."""
+
 from __future__ import annotations
 
 import argparse
@@ -129,9 +130,7 @@ def _run_once(
             return 0
 
         logger.info("Cache stale or missing — starting scrape")
-        products = (
-            scraper.scrape_via_browse() if args.browse else scraper.scrape_via_actions()
-        )
+        products = scraper.scrape_via_browse() if args.browse else scraper.scrape_via_actions()
         # ponytail: filtruje se až po úplném scrapu (~1 min); zúžit samotný scrape, až to bude pomalé.
         products = select_products(products, args.filter_group, args.limit)
         if not products:
@@ -209,16 +208,12 @@ def main() -> int:
     iteration = 1
     while True:
         try:
-            logger.info(
-                f"Iteration #{iteration} — {datetime.now():%Y-%m-%d %H:%M:%S}"
-            )
+            logger.info(f"Iteration #{iteration} — {datetime.now():%Y-%m-%d %H:%M:%S}")
             rc = _run_once(args, client, scraper, cache, csv_store, logger)
             log = logger.info if rc == 0 else logger.warning
             log(f"Iteration #{iteration} finished (exit {rc})")
             iteration += 1
-            logger.info(
-                f"Sleeping {settings.loop_interval_seconds // 60} min before next iteration"
-            )
+            logger.info(f"Sleeping {settings.loop_interval_seconds // 60} min before next iteration")
             time.sleep(settings.loop_interval_seconds)
         except KeyboardInterrupt:
             logger.info("Loop stopped by user")

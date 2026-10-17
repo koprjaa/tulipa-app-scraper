@@ -17,6 +17,7 @@
 Used by `--discover`, `--list-browse`, `--test-actions` CLI modes to poke at the
 Helios API without committing to a full scrape.
 """
+
 from __future__ import annotations
 
 import logging
@@ -45,16 +46,26 @@ class Discovery:
     def discover_categories(self) -> dict[str, dict[str, Any]]:
         """Probe a hardcoded list of candidate category names to see which exist."""
         candidates = (
-            "Dnešní nabídka", "Dnes", "Nabídka", "Aktuální", "Speciální",
-            "Akce", "Sleva", "Promo", "Týdenní", "Měsíční",
-            "Novinky", "Trendy", "Sezónní", "Výprodej", "Doporučené",
+            "Dnešní nabídka",
+            "Dnes",
+            "Nabídka",
+            "Aktuální",
+            "Speciální",
+            "Akce",
+            "Sleva",
+            "Promo",
+            "Týdenní",
+            "Měsíční",
+            "Novinky",
+            "Trendy",
+            "Sezónní",
+            "Výprodej",
+            "Doporučené",
         )
         found: dict[str, dict[str, Any]] = {}
         for candidate in candidates:
             self.logger.info(f"Probing category: '{candidate}'")
-            response = self.client.run_external_action(
-                self.settings.action_subgroups, parameters=[candidate]
-            )
+            response = self.client.run_external_action(self.settings.action_subgroups, parameters=[candidate])
             if not HeliosClient.is_success(response):
                 found[candidate] = {"exists": False}
                 continue
@@ -121,7 +132,9 @@ class Discovery:
                     "params": params,
                     "row_count": row_count,
                 }
-                self.logger.info(f"  ✓ {description} — OK ({row_count if row_count is not None else '?'} rows)")
+                self.logger.info(
+                    f"  ✓ {description} — OK ({row_count if row_count is not None else '?'} rows)"
+                )
             else:
                 err = (
                     response["result"][0]["fields"].get("ErrorMessage", "unknown")  # type: ignore[index]

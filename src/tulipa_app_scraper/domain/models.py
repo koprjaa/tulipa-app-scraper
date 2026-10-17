@@ -18,6 +18,7 @@ Product rows stay as plain dicts because Helios returns heterogeneous fields per
 ActionID — trying to normalise them into a single dataclass would lose columns
 downstream tooling depends on.
 """
+
 from dataclasses import dataclass
 
 

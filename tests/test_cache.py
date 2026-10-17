@@ -13,6 +13,7 @@
 #
 
 """Unit tests for CacheStore — path generation, freshness, cleanup."""
+
 from datetime import datetime, timedelta
 
 import pytest
@@ -53,6 +54,7 @@ def test_find_latest_picks_newest(cache, tmp_path):
     # Force old_file to be older than new_file
     old_ts = (datetime.now() - timedelta(days=2)).timestamp()
     import os
+
     os.utime(old_file, (old_ts, old_ts))
 
     assert cache.find_latest() == new_file
@@ -68,6 +70,7 @@ def test_is_fresh_false_for_old_file(cache, tmp_path):
     f = tmp_path / "old.csv"
     f.touch()
     import os
+
     old_ts = (datetime.now() - timedelta(hours=3)).timestamp()
     os.utime(f, (old_ts, old_ts))
     assert not cache.is_fresh(f, max_age_hours=1)
@@ -86,6 +89,7 @@ def test_cleanup_old_removes_stale(cache, tmp_path):
     new_file.touch()
 
     import os
+
     old_ts = (datetime.now() - timedelta(hours=48)).timestamp()
     os.utime(old_file, (old_ts, old_ts))
 

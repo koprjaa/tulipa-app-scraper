@@ -13,6 +13,7 @@
 #
 
 """Pure domain types — dataclasses and error hierarchy, no I/O."""
+
 from tulipa_app_scraper.domain.errors import (
     TulipaAPIError,
     TulipaError,

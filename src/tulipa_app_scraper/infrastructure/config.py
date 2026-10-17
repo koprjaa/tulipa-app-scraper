@@ -17,6 +17,7 @@
 Defaults are copied from the reverse-engineered Tulipa B2B client. Any of them
 can be overridden via environment variables; `.env` is loaded automatically.
 """
+
 from __future__ import annotations
 
 import os
@@ -47,9 +48,7 @@ class Settings:
     main_groups: tuple[str, ...] = ("Dekor", "Kveto", "Sezón", "Sukul")
 
     # ----- Category series walked category → subgroup → product, with the HlavniSkupina label -----
-    category_series: dict[str, str] = field(
-        default_factory=lambda: {"100": "Řezané", "300": "Kategorie"}
-    )
+    category_series: dict[str, str] = field(default_factory=lambda: {"100": "Řezané", "300": "Kategorie"})
 
     # ----- ActionIDs (reverse-engineered) -----
     action_subgroups: str = "7C100193-68DF-4C59-8692-33E421EEBCD3"

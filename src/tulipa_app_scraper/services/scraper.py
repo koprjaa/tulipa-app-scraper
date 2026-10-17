@@ -22,6 +22,7 @@ Two entry points:
 
 Both return a list of product dicts ready for CSV serialisation.
 """
+
 from __future__ import annotations
 
 import logging
@@ -100,9 +101,7 @@ class TulipaScraper:
 
     def _fetch_subgroups(self, group_name: str) -> dict[str, str]:
         self.logger.info(f"  Fetching subgroups for '{group_name}'")
-        response = self.client.run_external_action(
-            self.settings.action_subgroups, parameters=[group_name]
-        )
+        response = self.client.run_external_action(self.settings.action_subgroups, parameters=[group_name])
         if not HeliosClient.is_success(response):
             self.logger.warning(f"  Failed to fetch subgroups for '{group_name}'")
             return {}
@@ -123,9 +122,7 @@ class TulipaScraper:
         self.logger.info(f"  Found {len(result)} subgroups for '{group_name}'")
         return result
 
-    def _fetch_products(
-        self, group: str, subgroup_code: str, subgroup_name: str
-    ) -> list[dict]:
+    def _fetch_products(self, group: str, subgroup_code: str, subgroup_name: str) -> list[dict]:
         self.logger.info(f"    Fetching products for '{group} / {subgroup_name} ({subgroup_code})'")
         response = self.client.run_external_action(
             self.settings.action_products, parameters=[group, subgroup_code]
@@ -143,9 +140,7 @@ class TulipaScraper:
 
     def _fetch_extra_products(self) -> list[dict]:
         self.logger.info("Fetching extra products from browse metadata...")
-        response = self.client.run_external_action(
-            self.settings.action_browse_metadata, parameters=[]
-        )
+        response = self.client.run_external_action(self.settings.action_browse_metadata, parameters=[])
         if not HeliosClient.is_success(response):
             return []
         try:
@@ -167,15 +162,15 @@ class TulipaScraper:
 
     def _fetch_category_list(self, series: str) -> list[dict]:
         """Categories of one series (100 cut flowers, 200 main groups, 300 florist supplies) with stock."""
-        response = self.client.run_external_action(
-            self.settings.action_kategorie_300, parameters=[series]
-        )
+        response = self.client.run_external_action(self.settings.action_kategorie_300, parameters=[series])
         if not HeliosClient.is_success(response):
             self.logger.warning(f"  Failed to fetch category series {series}")
             return []
         rows = self._extract_rows(response["result"][0]["fields"].get("Result")) or []  # type: ignore[index]
         categories = [self._row_to_dict(row) for row in rows]
-        return [c for c in categories if c.get("K1") and str(c.get("Pocet", "")).isdigit() and int(c["Pocet"]) > 0]
+        return [
+            c for c in categories if c.get("K1") and str(c.get("Pocet", "")).isdigit() and int(c["Pocet"]) > 0
+        ]
 
     def _fetch_all_products_from_categories(self, series: str, label: str) -> list[dict]:
         """Walk every category of a series → every subgroup → every product."""
@@ -192,9 +187,7 @@ class TulipaScraper:
         return products
 
     def _walk_category_subgroups(self, cat_code: str, cat_name: str, label: str) -> list[dict]:
-        response = self.client.run_external_action(
-            self.settings.action_subgroups, parameters=[cat_code]
-        )
+        response = self.client.run_external_action(self.settings.action_subgroups, parameters=[cat_code])
         if not HeliosClient.is_success(response):
             return []
         try:

@@ -18,6 +18,7 @@ Wraps everything external into one class: `HeliosClient` owns the
 `requests.Session`, the token cache, the RPC envelope, and retry logic.
 Consumers (services) depend on this single object, not on module-level state.
 """
+
 from __future__ import annotations
 
 import gzip
@@ -73,9 +74,7 @@ class HeliosClient:
 
         self.logger.info("Acquiring new session token via login")
         self._session_token = self._login()
-        self._session_expires = datetime.now() + timedelta(
-            minutes=self.settings.session_timeout_minutes
-        )
+        self._session_expires = datetime.now() + timedelta(minutes=self.settings.session_timeout_minutes)
         self._save_token_to_disk()
         return self._session_token
 
@@ -141,6 +140,7 @@ class HeliosClient:
             self.logger.error(f"Unexpected RPC error: {e}")
             if self.settings.debug:
                 import traceback
+
                 self.logger.debug(traceback.format_exc())
             return None
 
@@ -170,9 +170,7 @@ class HeliosClient:
         """Run `GetBrowse` — either list all browse definitions, or fetch one by name."""
         token = self.get_token()
         params: dict = (
-            {"Version": "1.0"}
-            if browse_name is None
-            else {"Version": "1.1", "BrowseName": browse_name}
+            {"Version": "1.0"} if browse_name is None else {"Version": "1.1", "BrowseName": browse_name}
         )
         return self.call({"_parameters": [token, "GetBrowse", params, []]})
 
@@ -203,9 +201,7 @@ class HeliosClient:
             raise TulipaAPIError(f"Login failed: {msg}")
         return response["result"][0]["fields"]["Result"]
 
-    def _build_action_payload(
-        self, action_id: str, parameters: list | None, token: str
-    ) -> dict:
+    def _build_action_payload(self, action_id: str, parameters: list | None, token: str) -> dict:
         return {
             "_parameters": [
                 token,
@@ -239,9 +235,7 @@ class HeliosClient:
             if data.get("username") != self.settings.username:
                 self.settings.session_file.unlink(missing_ok=True)
                 return None
-            self.logger.info(
-                f"Loaded valid session token (expires {expires_at:%H:%M:%S})"
-            )
+            self.logger.info(f"Loaded valid session token (expires {expires_at:%H:%M:%S})")
             return data["token"], expires_at
         except Exception as e:  # noqa: BLE001
             self.logger.warning(f"Failed to load session token: {e}")
@@ -293,15 +287,8 @@ class HeliosClient:
         if not response:
             return False
         try:
-            msg = (
-                response.get("result", [{}])[0]
-                .get("fields", {})
-                .get("ErrorMessage", "")
-                .lower()
-            )
-            return any(
-                kw in msg for kw in ("session", "token", "login", "expired", "invalid")
-            )
+            msg = response.get("result", [{}])[0].get("fields", {}).get("ErrorMessage", "").lower()
+            return any(kw in msg for kw in ("session", "token", "login", "expired", "invalid"))
         except (KeyError, IndexError, AttributeError):
             return False
 

@@ -13,6 +13,7 @@
 #
 
 """CSV serialisation and de-serialisation for scraped product rows."""
+
 from __future__ import annotations
 
 import csv
@@ -56,9 +57,7 @@ class CSVStore:
                 )
                 writer.writeheader()
                 writer.writerows(products)
-            self.logger.info(
-                f"Wrote {len(products)} products to {output_file} ({len(fieldnames)} cols)"
-            )
+            self.logger.info(f"Wrote {len(products)} products to {output_file} ({len(fieldnames)} cols)")
             return True
         except OSError as e:
             self.logger.error(f"Failed to write CSV: {e}")

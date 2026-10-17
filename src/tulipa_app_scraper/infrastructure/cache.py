@@ -13,6 +13,7 @@
 #
 
 """File-based cache for scraped product CSVs, keyed by date folder."""
+
 from __future__ import annotations
 
 import glob

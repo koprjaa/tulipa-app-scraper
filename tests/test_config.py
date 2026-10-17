@@ -14,7 +14,6 @@
 
 """Unit tests for Settings — defaults, env overrides, full_url composition."""
 
-
 from tulipa_app_scraper.infrastructure.config import Settings
 
 
