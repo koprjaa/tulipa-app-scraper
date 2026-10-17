@@ -4,7 +4,7 @@ version = "0.2.0"
 edition = "2021"
 authors = ["Jan Alexandr Kopřiva"]
 license = "MIT"
-description = "Tulipa B2B Helios product and inventory CSV scraper"
+description = "Exports product and stock data from the Tulipa B2B florist portal."
 repository = "https://github.com/koprjaa/tulipa-app-scraper"
 
 [[bin]]
