@@ -1,122 +1,85 @@
 # tulipa-app-scraper
 
-Extracts product and stock data from the Tulipa B2B florist portal and writes it to CSV. The portal runs on a Helios ERP backend with no documented API.
-
-![python](https://img.shields.io/badge/python-3.10+-3776AB?style=flat-square&logo=python&logoColor=white)
+![rust](https://img.shields.io/badge/rust-2021-orange?style=flat-square&logo=rust)
 ![license](https://img.shields.io/badge/license-MIT-A31F34?style=flat-square)
-![status](https://img.shields.io/badge/status-active-22863A?style=flat-square)
-[![ci](https://github.com/koprjaa/tulipa-app-scraper/actions/workflows/ci.yml/badge.svg)](https://github.com/koprjaa/tulipa-app-scraper/actions/workflows/ci.yml)
 
-Tulipa is a Czech wholesale florist. A Helios iNuvio backend serves the B2B portal through a JSON-RPC endpoint with session tokens, cookie authentication, and opaque `ActionID` routes. The scraper handles the full flow: it acquires and refreshes the session, discovers the categories and subgroups, walks every main group (category series 200, read live from the server), the cut flowers (series 100), and the florist supplies (series 300), checks each category against the count the server reports, caches the result for one hour, and can repeat the run every 30 minutes.
+Exports product and inventory data from the Tulipa B2B florist portal through its Helios JSON-RPC endpoint. Requests run sequentially with cookie persistence, verified TLS against the supplied RapidSSL/DigiCert chain, a 30-second request timeout and a 200 ms pause before ordinary RPC calls.
 
-## Install
 
-```bash
-uv venv
-uv pip install -e .
+## Installation
+
+Install a current stable Rust toolchain, then run:
+
+```sh
+cargo install --path .
 ```
 
-Create a `.env` file in the repository root:
+Set `HELIOS_USERNAME` and `HELIOS_PASSWORD` in the environment or a `.env` file. `HELIOS_URL` optionally replaces the base URL (default `https://eserver.tulipapraha.com:4343`); the RPC path is appended. Empty overrides fall back to defaults. Environment values take precedence over `.env`, searched from the current directory through its parents. Credentials are required only when a new login is necessary.
 
-```ini
-HELIOS_USERNAME=your_username
-HELIOS_PASSWORD=your_password
-# Optional, if the endpoints change:
-# HELIOS_URL=https://...
+## Usage
+
+```sh
+tulipa-scraper
+tulipa-scraper --browse
+tulipa-scraper --loop
+tulipa-scraper --output my.csv
+tulipa-scraper --filter-group Dekor --limit 100
+tulipa-scraper --reset
+tulipa-scraper --discover
 ```
 
-The scraper writes the session token to `data/tulipa_session.json` and refreshes it when it expires. You do not log in again per run.
-
-## Use
-
-```bash
-tulipa-scraper                        # full scrape, uses the cache
-tulipa-scraper --browse               # faster path, GetBrowse instead of RunExternalAction
-tulipa-scraper --loop                 # rerun every 30 minutes
-tulipa-scraper --output my.csv        # custom output path
-tulipa-scraper --filter-group Dekor   # one main group only
-tulipa-scraper --reset                # discard the cached session token
-tulipa-scraper --discover             # list the categories and exit
-```
-
-`python -m tulipa_app_scraper` and `python run.py` accept the same flags.
-
-Each row holds the main group and subgroup, the Helios fields as the server returns them (`ID`, `RegCis`, `_EAN`, `Nazev1`, the four price levels `_cena_cu1`–`_cena_cu4` with a decimal point, the stock `Mnozstvi`, and the Tulipa attributes such as size and the image URL), one row per EAN. The `HlavniSkupina` column holds the main group code (`Dekor`, `Orchi`, …), `Řezané` for cut flowers, or `Kategorie` for florist supplies.
-
-The file is named `produkty_komplet_YYYYMMDD_HHMMSS.csv`, with a stable `produkty_komplet.csv` link for downstream jobs.
-
-Every successful run caches its result under `data/YYYY-MM-DD/`. A run inside the next hour reads the cache instead of the portal. A custom `--output` name skips the cache read.
-
-## Options
-
-| Flag | Default | Effect |
+| Option | Default | Behavior |
 |---|---|---|
-| `--output` | `produkty_komplet.csv` | CSV output path. |
-| `--filter-group` | all | Keep one `HlavniSkupina` value, such as Dekor or Kategorie. Filtered and limited runs bypass the cache. |
-| `--limit` | none | Maximum number of products. |
-| `--browse` | off | Use `GetBrowse` instead of `RunExternalAction`. The server currently answers „Přehled nenalezen“, so the run falls back to the full path. |
-| `--loop` | off | Rerun every 30 minutes. Stop with Ctrl+C. |
-| `--reset` | off | Discard the cached Helios session token. |
-| `--discover` | off | List the categories and exit. |
-| `--list-browse` | off | List the `Browse` definitions and exit. |
-| `--test-actions` | off | Probe the `ActionID` values with test parameters. |
-| `--debug` | off | Verbose debug logging. |
-| `--log-level` | `INFO` | One of DEBUG, INFO, WARNING, ERROR. |
-| `--safety-reserve` | 5 | Items held back from the available stock. |
-| `--reserve-threshold` | 20 | Stock level at which the reserve applies. |
+| `--output` | `produkty_komplet.csv` | Default writes a dated cache file; another path writes directly there. |
+| `--filter-group` | all | Unicode case-insensitive exact main group match after the complete scrape. |
+| `--limit` | unlimited | Applied after filtering; zero is unlimited, a negative number omits that many final rows. |
+| `--browse` | off | Fetch browse 82, falling back to the complete action traversal if empty. |
+| `--loop` | off | Repeat every 1800 seconds. Ctrl+C stops the loop. |
+| `--reset` | off | Best-effort logout, remove saved session, exit. |
+| `--discover` | off | Probe the original fifteen category candidates and exit. |
+| `--list-browse` | off | Activate the database and log the first ten browse definitions. |
+| `--test-actions` | off | Run six original probes and summarize results keyed by action GUID. |
+| `--debug` | off | Enable HTTP diagnostic messages; visibility still requires DEBUG log level. |
+| `--log-level` | INFO | DEBUG, INFO, WARNING or ERROR. Logs go to stdout; banner to stderr. |
+| `--safety-reserve` | 5 | Retained consumer setting; does not change exported inventory. |
+| `--reserve-threshold` | 20 | Retained consumer setting; does not change exported inventory. |
 
-## How it works
+Special modes take precedence in this order: reset, discover, test-actions, list-browse. Successful commands return 0, failed exports return 1, invalid arguments return 2.
 
-The layout is hexagonal. Domain types sit at the core, all input and output sits at the edges, and the services sit between them.
+## Export and cache
 
-```
-src/tulipa_app_scraper/
-  domain/errors.py             TulipaError, TulipaSessionExpired, TulipaAPIError
-  domain/models.py             Category and Subgroup dataclasses
-  infrastructure/config.py     Settings dataclass with environment overrides
-  infrastructure/helios_client.py  HTTP session, RPC calls, token cache
-  infrastructure/cache.py      Dated CSV cache with a TTL
-  infrastructure/csv_writer.py CSV read and write with column ordering
-  services/scraper.py          Walks the groups, categories, and subgroups
-  services/discovery.py        Backs --discover, --list-browse, --test-actions
-  cli.py                       argparse, main, loop
-```
+CSV uses UTF-8 with a BOM, semicolons, CRLF record endings and minimal quoting. Columns are the sorted union of product fields, with present columns promoted in this order: `HlavniSkupina`, `PodskupinaKod`, `PodskupinaNazev`, `Nazev1`, `RegCis`, `_cena_cu1`, `Mnozstvi`. Missing and null values are empty. Price strings under `_cena_cu*` replace commas with decimal points. Stock values are unchanged.
 
-The scrape logic performs no input or output of its own. It takes a `HeliosClient` and a `Settings` object. A test can replace the client with a mock. See `tests/` for the pattern.
+The action traversal reads main groups from category series 200, falling back to Dekor, Kveto, Sezón and Sukul. It then reads extra metadata and category series 100 and 300. The first occurrence of each EAN, otherwise ID, wins; rows without either remain distinct. The browse path preserves duplicates.
 
-## How the API was mapped
+Default exports live under `data/YYYY-MM-DD/produkty_komplet_YYYYMMDD_HHMMSS.csv`. Full exports skip scraping when the newest cache is younger than an hour. Custom output paths are also checked for freshness. Filtered or nonzero limited runs bypass freshness checks and use `produkty_vyber` for default dated output. Successful exports remove matching cache files older than 24 hours. There is no stable symlink or copy at the default filename, matching the original implementation.
 
-The Helios iNuvio backend accepts a JSON-RPC envelope (`THeliosMethods.Execute`). There are no API documents, no OpenAPI schema, and no types in the browser bundle. Every endpoint, every `ActionID`, and every parameter shape in `config.py` came from traffic capture with mitmproxy.
-
-1. Install mitmproxy with `pip install mitmproxy`.
-2. Run `mitmproxy` once to generate `~/.mitmproxy/`, then import `mitmproxy-ca-cert.pem` into the trust store of the operating system or the browser.
-3. Send the client through the proxy. A browser needs a proxy extension pointed at `localhost:8080`. A desktop application needs `HTTPS_PROXY=http://localhost:8080`.
-4. Click through every section of the portal by hand: product list, categories, subgroups, product detail, images. Each click produces RPC calls, and mitmproxy records them.
-5. Filter for `RunExternalAction` and `GetBrowse` calls. Read the `ActionID` value in the request body, the shape of the `Parameters` array, and the response envelope, which usually looks like `{"result": [{"fields": {"Result": {...}, "IsError": false}}]}`.
-6. Name each call, note its parameter signature, and save a sample response.
-7. Copy the `ActionID` constants into `infrastructure/config.py` and wrap the call sites in `HeliosClient.run_external_action()`.
-8. After a portal change, repeat steps 4 and 5. The `--test-actions` flag checks whether the known endpoints still answer.
-
-`mitmweb` on port 8081 is faster than step 4. Filter it with `~u /datasnap/` to isolate the RPC traffic.
-
-The `Username`, `Password`, and `PluginSysName` triplet in the login call is a public client credential taken from the same capture. It is not a personal account. Rotating it would break every user of the B2B portal.
-
-## Limits
-
-- The Helios token expires without a pattern. The scraper refreshes on a 401 or 403, but a cookie invalidated mid-run still ends the current iteration. The next `--loop` tick recovers.
-- Authentication is session based, not key based, so the scraper acts as a human user. Use a dedicated read-only account.
-- The `ActionID` constants are fixed in the source. A portal restructure breaks them, and you rediscover them with `--test-actions` and `--list-browse`.
-- One request at a time, by design. Helios rejects concurrent sessions from the same user.
+Sessions use `data/tulipa_session.json`, local ISO timestamps and a 45-minute estimated expiry. Unix token files are restricted to mode 0600. Every action first changes database to Helios001. Session error text triggers one retry; HTTP failures return no response and are not retried. Discovery does not generate JSON, XML or XLSX exports; the original application only exported CSV and its session JSON.
 
 ## Development
 
-```bash
-uv pip install -e ".[dev]"
-pytest -q
-ruff check .
+```sh
+cargo build --release
+cargo test
+cargo clippy --all-targets -- -D warnings
+cargo fmt --check
 ```
 
-CI runs ruff and pytest on Python 3.10, 3.11, and 3.12, on Linux and Windows. The suite covers config, cache, and the CSV writer.
+CI runs formatting, linting and tests on Ubuntu and Windows. Tests cover every original test case, CLI execution, byte-level CSV output, response shapes, complete category traversal, deduplication and token renewal. HTTP tests use local mocks only. No live portal request is needed.
+
+Dependencies have specific roles: reqwest handles blocking HTTP, cookies, compression and rustls; chrono handles local dates; serde/serde_json preserve heterogeneous RPC rows; csv handles escaping; clap parses arguments; dotenvy loads configuration; unicode-casefold preserves Unicode filtering; ctrlc stops repeating runs. Test-only httpmock provides HTTP mocks and tempfile isolates files.
+
+## Changes from the Python version
+
+- Python entry points and import APIs are replaced by the Rust binary and library; CLI option names and defaults are retained. Clap help and invalid-argument wording/layout differ from argparse, with the same exit codes. Integer CLI values use signed 64-bit bounds rather than arbitrary precision.
+- Embedded public login credentials are removed. Configure both credentials in the environment or `.env`; missing credentials produce a clear workflow error when login is needed. The corresponding original defaults test now verifies this intentional change.
+- Token-error retries delete the invalid disk token before logging in. Previously a retry could load the same rejected token again. A regression test covers renewal.
+- Debug output omits RPC payloads to avoid exposing credentials or session tokens. HTTP errors use Rust transport diagnostics; Python tracebacks are replaced by concise workflow errors. Invalid token files are discarded without Python exception-specific warning text.
+- Malformed row/response shapes are treated as empty or missing fields rather than raising Python indexing/type exceptions. Category counts accept ASCII decimal digits fitting an unsigned integer. Nested field values retain Python-style string representations.
+- Session JSON remains compatible but duration precision may differ.
+- Ctrl+C uses a portable signal handler: it immediately exits with 1 during a single export and 0 in loop mode. Unlike Python, loop interruption during an export stops immediately instead of completing the iteration and waiting for another interrupt.
+- Rust HTTP uses rustls rather than OpenSSL and a whole-request timeout rather than separate connect/read timeout phases. Compression is explicitly supported for all advertised encodings. Requests are UTF-8 JSON rather than Python's ASCII-escaped JSON; parsed RPC values are identical.
+- The original README incorrectly described custom output cache behavior, a stable link, and HTTP-status-based renewal. This README follows the actual implementation. No stable link, status-based retry, inventory reserve calculation or additional export format has been added.
 
 ## License
 

@@ -1,8 +1,13 @@
-
-# Local env file
+/target/
 .env
-
-# Python cache + build artefacts
+/data/
+*.csv
+*.log
+*.tmp
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
 __pycache__/
 *.pyc
 *.pyo
@@ -17,37 +22,15 @@ build/
 htmlcov/
 .pytest_cache/
 .ruff_cache/
-
-# Virtual environments
 venv/
 env/
 ENV/
 .venv/
-
-# IDE files
-.vscode/
-.idea/
 *.swp
 *.swo
 *~
-
-# Data files (outputs from scraper)
-data/ 
-*.csv
+data/
 *.json
-
-# Session files
 tulipa_session.json
-
-# Logs
-*.log
-
-# OS files
-.DS_Store
-Thumbs.db
-
-# Temporary files
-*.tmp
 *.temp
-
 uv.lock
