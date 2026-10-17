@@ -2,7 +2,6 @@
 // File: storage.rs
 // Description: Dated cache and byte-compatible CSV storage.
 // Author: Jan Alexandr Kopřiva
-// Based on tulipa-app-scraper by Jan Alexandr Kopřiva
 // License: MIT
 use crate::{text, Logger, Product, Result};
 use chrono::Local;

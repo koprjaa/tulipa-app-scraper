@@ -2,7 +2,6 @@
 // File: compat.rs
 // Description: Original test equivalents and offline regression coverage.
 // Author: Jan Alexandr Kopřiva
-// Based on tulipa-app-scraper by Jan Alexandr Kopřiva
 // License: MIT
 use serde_json::{json, Value};
 use std::{

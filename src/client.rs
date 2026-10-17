@@ -2,7 +2,6 @@
 // File: client.rs
 // Description: Sequential verified HTTP transport and session lifecycle.
 // Author: Jan Alexandr Kopřiva
-// Based on tulipa-app-scraper by Jan Alexandr Kopřiva
 // License: MIT
 use crate::{truth, Logger, Result, Settings};
 use chrono::{Duration, Local, NaiveDateTime};

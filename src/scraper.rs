@@ -2,7 +2,6 @@
 // File: scraper.rs
 // Description: Product traversal and portal discovery.
 // Author: Jan Alexandr Kopřiva
-// Based on tulipa-app-scraper by Jan Alexandr Kopřiva
 // License: MIT
 use crate::{
     client::{fields, success, Rpc},

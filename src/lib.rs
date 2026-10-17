@@ -2,7 +2,6 @@
 // File: lib.rs
 // Description: Configuration, storage and Helios service interfaces.
 // Author: Jan Alexandr Kopřiva
-// Based on tulipa-app-scraper by Jan Alexandr Kopřiva
 // License: MIT
 pub mod client;
 pub mod scraper;

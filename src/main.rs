@@ -2,7 +2,6 @@
 // File: main.rs
 // Description: Command line modes and repeating export workflow.
 // Author: Jan Alexandr Kopřiva
-// Based on tulipa-app-scraper by Jan Alexandr Kopřiva
 // License: MIT
 use clap::Parser;
 use std::{
