@@ -14,7 +14,7 @@ use std::{
 };
 use tulipa_app_scraper::{
     client::{fields, success, HeliosClient, Rpc},
-    scraper::{extract_rows, row_to_dict, Scraper},
+    scraper::{extract_rows, Scraper},
     storage::{write_csv, CacheStore},
     *,
 };
@@ -35,7 +35,7 @@ struct Args {
     output: String,
     #[arg(long, help = "Filter by main group (e.g. Dekor, Kveto)")]
     filter_group: Option<String>,
-    #[arg(long, allow_hyphen_values = true, help = "Cap number of products")]
+    #[arg(long, allow_hyphen_values = true, value_parser = parse_limit, help = "Cap number of products")]
     limit: Option<i64>,
     #[arg(long, help = "Use fast GetBrowse endpoint")]
     browse: bool,
@@ -53,10 +53,39 @@ struct Args {
     debug: bool,
     #[arg(long,default_value="INFO",value_parser=["DEBUG","INFO","WARNING","ERROR"])]
     log_level: String,
-    #[arg(long, default_value_t = 5, allow_hyphen_values = true)]
+    #[arg(long, default_value_t = 5, allow_hyphen_values = true, value_parser = parse_limit)]
     safety_reserve: i64,
-    #[arg(long, default_value_t = 20, allow_hyphen_values = true)]
+    #[arg(long, default_value_t = 20, allow_hyphen_values = true, value_parser = parse_limit)]
     reserve_threshold: i64,
+}
+fn parse_limit(value: &str) -> std::result::Result<i64, String> {
+    let value = value.trim();
+    let (negative, digits) = if let Some(s) = value.strip_prefix('-') {
+        (true, s)
+    } else {
+        (false, value.strip_prefix('+').unwrap_or(value))
+    };
+    let mut normalized = String::new();
+    let mut previous_digit = false;
+    for c in digits.chars() {
+        if c == '_' && previous_digit {
+            previous_digit = false;
+        } else if let Some(n) = decimal_digit(c) {
+            normalized.push(char::from(b'0' + n as u8));
+            previous_digit = true;
+        } else {
+            return Err("expected an integer".into());
+        }
+    }
+    if !previous_digit {
+        return Err("expected an integer".into());
+    }
+    if negative {
+        normalized.insert(0, '-');
+    }
+    Ok(normalized
+        .parse::<i64>()
+        .unwrap_or(if negative { i64::MIN } else { i64::MAX }))
 }
 fn run_once(args: &Args, client: &mut HeliosClient, s: &Settings, log: &Logger) -> Result<i32> {
     let cache = CacheStore {
@@ -157,7 +186,19 @@ fn execute(args: &Args, s: &Settings, log: &Logger) -> Result<i32> {
                 format!(
                     "  {}. {}",
                     i + 1,
-                    python_repr(&serde_json::Value::Object(row_to_dict(row)))
+                    python_repr(&serde_json::Value::Object(
+                        row.as_array()
+                            .into_iter()
+                            .flatten()
+                            .map(|field| (
+                                field["FieldName"].as_str().unwrap_or("").to_owned(),
+                                field
+                                    .get("Value")
+                                    .cloned()
+                                    .unwrap_or_else(|| serde_json::json!(""))
+                            ))
+                            .collect()
+                    ))
                 ),
             );
         }
@@ -197,7 +238,7 @@ fn execute(args: &Args, s: &Settings, log: &Logger) -> Result<i32> {
             s.loop_interval_seconds / 60
         ),
     );
-    let mut iteration = 1;
+    let mut iteration = 1u64;
     while !stopped.load(Ordering::SeqCst) {
         log.log(
             "INFO",
@@ -211,7 +252,7 @@ fn execute(args: &Args, s: &Settings, log: &Logger) -> Result<i32> {
             if rc == 0 { "INFO" } else { "WARNING" },
             format!("Iteration #{iteration} finished (exit {rc})"),
         );
-        iteration += 1;
+        iteration = iteration.saturating_add(1);
         log.log(
             "INFO",
             format!(
@@ -219,11 +260,13 @@ fn execute(args: &Args, s: &Settings, log: &Logger) -> Result<i32> {
                 s.loop_interval_seconds / 60
             ),
         );
-        for _ in 0..s.loop_interval_seconds * 10 {
-            if stopped.load(Ordering::SeqCst) {
-                break;
+        for _ in 0..s.loop_interval_seconds {
+            for _ in 0..10 {
+                if stopped.load(Ordering::SeqCst) {
+                    break;
+                }
+                std::thread::sleep(Duration::from_millis(100));
             }
-            std::thread::sleep(Duration::from_millis(100));
         }
     }
     log.log("INFO", "Loop stopped by user");

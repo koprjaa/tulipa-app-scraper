@@ -6,7 +6,11 @@
 use crate::{truth, Logger, Result, Settings};
 use chrono::{Duration, Local, NaiveDateTime};
 use serde_json::{json, Value};
-use std::{fs, io::Write, thread, time};
+use std::{
+    fs,
+    io::{Read, Write},
+    thread, time,
+};
 pub const CA_BUNDLE: &[u8] = include_bytes!("../assets/tulipa_ca.pem");
 pub fn fields(v: &Value) -> &Value {
     &v["result"][0]["fields"]
@@ -75,7 +79,20 @@ impl HeliosClient {
             .json(&payload)
             .send()
             .and_then(|r| r.error_for_status())
-            .and_then(|r| r.json::<Value>());
+            .and_then(|r| r.bytes());
+        let result = result
+            .map_err(|e| -> Box<dyn std::error::Error> { Box::new(e) })
+            .and_then(|bytes| {
+                // Some Helios responses contain another gzip stream after HTTP decoding.
+                let mut decoded = Vec::new();
+                let body = if bytes.starts_with(&[0x1f, 0x8b]) {
+                    flate2::read::GzDecoder::new(bytes.as_ref()).read_to_end(&mut decoded)?;
+                    decoded.as_slice()
+                } else {
+                    bytes.as_ref()
+                };
+                Ok(serde_json::from_slice::<Value>(body)?)
+            });
         match result {
             Ok(v) => {
                 if truth(&fields(&v)["IsError"]) {
@@ -90,9 +107,10 @@ impl HeliosClient {
                 v
             }
             Err(e) => {
-                let label = if e.is_timeout() {
+                let request_error = e.downcast_ref::<reqwest::Error>();
+                let label = if request_error.is_some_and(reqwest::Error::is_timeout) {
                     "Timeout"
-                } else if e.is_connect() {
+                } else if request_error.is_some_and(reqwest::Error::is_connect) {
                     "Connection error"
                 } else {
                     "Unexpected RPC error"
@@ -156,7 +174,13 @@ impl HeliosClient {
             .to_string();
         self.token = Some(token.clone());
         self.expires = Some(
-            Local::now().naive_local() + Duration::minutes(self.settings.session_timeout_minutes),
+            Local::now()
+                .naive_local()
+                .checked_add_signed(
+                    Duration::try_minutes(self.settings.session_timeout_minutes)
+                        .ok_or("session timeout is out of range")?,
+                )
+                .ok_or("session expiry is out of range")?,
         );
         self.save_token()?;
         Ok(token)

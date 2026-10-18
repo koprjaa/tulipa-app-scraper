@@ -42,13 +42,13 @@ fn rows(v: &Value) -> Vec<Product> {
         vec![]
     }
 }
-fn annotate(p: &mut Product, group: &str, code: &str, name: &str) {
+fn annotate(p: &mut Product, group: &Value, code: &Value, name: &Value) {
     for (k, v) in [
         ("HlavniSkupina", group),
         ("PodskupinaKod", code),
         ("PodskupinaNazev", name),
     ] {
-        p.insert(k.into(), v.into());
+        p.insert(k.into(), v.clone());
     }
 }
 pub struct Scraper<'a, R: Rpc> {
@@ -69,17 +69,11 @@ impl<R: Rpc> Scraper<'_, R> {
             .into_iter()
             .filter(|c| {
                 truth(c.get("K1").unwrap_or(&Value::Null))
-                    && text(c.get("Pocet").unwrap_or(&Value::Null))
-                        .chars()
-                        .all(|c| c.is_ascii_digit())
-                    && text(c.get("Pocet").unwrap_or(&Value::Null))
-                        .parse::<u64>()
-                        .unwrap_or(0)
-                        > 0
+                    && category_count(c.get("Pocet").unwrap_or(&Value::Null)).is_some_and(|n| n > 0)
             })
             .collect())
     }
-    fn products(&mut self, cat: &str, sub: &str) -> Result<Vec<Product>> {
+    fn products(&mut self, cat: &Value, sub: &Value) -> Result<Vec<Product>> {
         Ok(rows(&self.rpc.action(PRODUCTS, json!([cat, sub]))?))
     }
     pub fn browse(&mut self) -> Result<Vec<Product>> {
@@ -114,46 +108,69 @@ impl<R: Rpc> Scraper<'_, R> {
         self.log
             .log("INFO", "=== Phase 1: scrape via RunExternalAction ===");
         let cats = self.categories("200")?;
-        let groups = if cats.is_empty() {
-            self.settings.main_groups.clone()
+        let groups: Vec<Value> = if cats.is_empty() {
+            self.settings
+                .main_groups
+                .iter()
+                .cloned()
+                .map(Value::String)
+                .collect()
         } else {
             cats.iter()
-                .map(|c| text(c.get("K1").unwrap_or(&Value::Null)))
+                .map(|c| c.get("K1").cloned().unwrap_or(Value::Null))
                 .collect()
         };
         let mut combined = vec![];
         for group in groups {
-            self.log.log("INFO", format!("Main group: {group}"));
             self.log
-                .log("INFO", format!("  Fetching subgroups for '{group}'"));
+                .log("INFO", format!("Main group: {}", text(&group)));
+            self.log.log(
+                "INFO",
+                format!("  Fetching subgroups for '{}'", text(&group)),
+            );
             let v = self.rpc.action(SUBGROUPS, json!([group]))?;
             if !success(&v) {
                 self.log.log(
                     "WARNING",
-                    format!("  Failed to fetch subgroups for '{group}'"),
+                    format!("  Failed to fetch subgroups for '{}'", text(&group)),
                 );
                 continue;
             }
-            let mut subgroups = Product::new();
+            let mut subgroups: Vec<(Value, Value)> = vec![];
             for row in extract_rows(&fields(&v)["Result"]) {
                 if let (Some(code), Some(name)) = (
                     row.get(1).and_then(|v| v.get("Value")),
                     row.get(2).and_then(|v| v.get("Value")),
                 ) {
                     if truth(code) {
-                        subgroups.insert(text(code), name.clone());
+                        if let Some((_, old_name)) = subgroups
+                            .iter_mut()
+                            .find(|(old, _)| identity_key(old) == identity_key(code))
+                        {
+                            *old_name = name.clone();
+                        } else {
+                            subgroups.push((code.clone(), name.clone()));
+                        }
                     }
                 }
             }
             self.log.log(
                 "INFO",
-                format!("  Found {} subgroups for '{group}'", subgroups.len()),
+                format!(
+                    "  Found {} subgroups for '{}'",
+                    subgroups.len(),
+                    text(&group)
+                ),
             );
             for (code, name) in subgroups {
-                let name = text(&name);
                 self.log.log(
                     "INFO",
-                    format!("    Fetching products for '{group} / {name} ({code})'"),
+                    format!(
+                        "    Fetching products for '{} / {} ({})'",
+                        text(&group),
+                        text(&name),
+                        text(&code)
+                    ),
                 );
                 let mut p = self.products(&group, &code)?;
                 self.log
@@ -170,7 +187,12 @@ impl<R: Rpc> Scraper<'_, R> {
         if success(&v) {
             let mut extra = rows(&v);
             for p in &mut extra {
-                annotate(p, "Extra", "Extra3", "Extra produkty 3");
+                annotate(
+                    p,
+                    &json!("Extra"),
+                    &json!("Extra3"),
+                    &json!("Extra produkty 3"),
+                );
             }
             self.log
                 .log("INFO", format!("  Got {} extra products", extra.len()));
@@ -183,12 +205,18 @@ impl<R: Rpc> Scraper<'_, R> {
             );
             let mut total = 0;
             for cat in self.categories(series)? {
-                let code = text(cat.get("K1").unwrap_or(&Value::Null));
-                let name = text(cat.get("K1Name").unwrap_or(&Value::Null));
-                let expected = text(cat.get("Pocet").unwrap_or(&Value::Null)).parse::<usize>()?;
+                let code = cat.get("K1").cloned().unwrap_or(Value::Null);
+                let name = cat.get("K1Name").cloned().unwrap_or(json!(""));
+                let expected_value = cat.get("Pocet").unwrap_or(&Value::Null);
+                let expected = category_count(expected_value).unwrap_or(0);
+                let expected_label = text(expected_value);
                 self.log.log(
                     "INFO",
-                    format!("  Category: {code} — {name} ({expected} products)"),
+                    format!(
+                        "  Category: {} — {} ({expected_label} products)",
+                        text(&code),
+                        text(&name)
+                    ),
                 );
                 let v = self.rpc.action(SUBGROUPS, json!([code]))?;
                 let mut got = vec![];
@@ -197,14 +225,14 @@ impl<R: Rpc> Scraper<'_, R> {
                         if !truth(sub.get("K2").unwrap_or(&Value::Null)) {
                             continue;
                         }
-                        let subcode = text(sub.get("K2").unwrap_or(&Value::Null));
-                        let subname = text(sub.get("K2Name").unwrap_or(&Value::Null));
+                        let subcode = sub.get("K2").cloned().unwrap_or(Value::Null);
+                        let subname = sub.get("K2Name").cloned().unwrap_or(json!(""));
                         for mut p in self.products(&code, &subcode)? {
                             annotate(
                                 &mut p,
-                                label,
+                                &json!(label),
                                 &code,
-                                if subname.is_empty() { &name } else { &subname },
+                                if !truth(&subname) { &name } else { &subname },
                             );
                             got.push(p);
                         }
@@ -214,7 +242,8 @@ impl<R: Rpc> Scraper<'_, R> {
                     self.log.log(
                         "WARNING",
                         format!(
-                            "  Category {code}: server reports {expected}, collected {}",
+                            "  Category {}: server reports {expected_label}, collected {}",
+                            text(&code),
                             got.len()
                         ),
                     );
@@ -236,7 +265,7 @@ impl<R: Rpc> Scraper<'_, R> {
                     .get("_EAN")
                     .filter(|v| truth(v))
                     .or_else(|| p.get("ID").filter(|v| truth(v)));
-                key.is_none_or(|v| seen.insert(v.to_string()))
+                key.is_none_or(|v| seen.insert(identity_key(v)))
             })
             .collect();
         self.log.log(
@@ -335,4 +364,34 @@ impl<R: Rpc> Scraper<'_, R> {
         );
         Ok(())
     }
+}
+
+// Python dictionary keys equate booleans and numerically equal integers/floats.
+fn identity_key(value: &Value) -> String {
+    match value {
+        Value::Bool(v) => format!("number:{}", u8::from(*v)),
+        Value::Number(v) => {
+            let numeric = if v.is_i64() || v.is_u64() {
+                v.to_string()
+            } else if let Some(n) = v.as_f64().filter(|n| n.fract() == 0.0) {
+                format!("{n:.0}")
+            } else {
+                v.to_string()
+            };
+            format!("number:{numeric}")
+        }
+        _ => value.to_string(),
+    }
+}
+
+// Saturation preserves category traversal even when the server reports an enormous count.
+fn category_count(value: &Value) -> Option<usize> {
+    let s = text(value);
+    if s.is_empty() {
+        return None;
+    }
+    s.chars().try_fold(0usize, |count, c| {
+        let digit = decimal_digit(c)?;
+        Some(count.saturating_mul(10).saturating_add(digit as usize))
+    })
 }

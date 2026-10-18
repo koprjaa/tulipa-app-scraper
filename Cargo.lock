@@ -1918,6 +1918,7 @@ dependencies = [
  "csv",
  "ctrlc",
  "dotenvy",
+ "flate2",
  "httpmock",
  "reqwest",
  "serde_json",

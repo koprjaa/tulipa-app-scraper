@@ -50,8 +50,10 @@ impl CacheStore {
         path.metadata()
             .and_then(|m| m.modified())
             .map(|t| {
-                SystemTime::now().duration_since(t).unwrap_or_default()
-                    < Duration::from_secs(hours * 3600)
+                SystemTime::now()
+                    .duration_since(t)
+                    .map(|age| age < Duration::from_secs(hours.saturating_mul(3600)))
+                    .unwrap_or(true)
             })
             .unwrap_or(false)
     }
@@ -63,7 +65,7 @@ impl CacheStore {
                     .and_then(|m| m.modified())
                     .ok()
                     .and_then(|t| SystemTime::now().duration_since(t).ok())
-                    .is_some_and(|age| age > Duration::from_secs(hours * 3600))
+                    .is_some_and(|age| age > Duration::from_secs(hours.saturating_mul(3600)))
                     && fs::remove_file(p).is_ok()
             })
             .count()
@@ -100,6 +102,12 @@ pub fn write_csv(products: &[Product], path: &Path, log: &Logger) -> bool {
         }
         let mut file = fs::File::create(path)?;
         file.write_all(b"\xef\xbb\xbf")?;
+        if fields.is_empty() {
+            for _ in 0..=products.len() {
+                file.write_all(b"\r\n")?;
+            }
+            return Ok(());
+        }
         let mut w = csv::WriterBuilder::new()
             .delimiter(b';')
             .terminator(csv::Terminator::CRLF)
@@ -137,15 +145,30 @@ pub fn write_csv(products: &[Product], path: &Path, log: &Logger) -> bool {
 pub fn read_csv(path: &Path) -> Result<Vec<Product>> {
     let bytes = fs::read(path)?;
     let bytes = bytes.strip_prefix(b"\xef\xbb\xbf").unwrap_or(&bytes);
-    let mut reader = csv::ReaderBuilder::new().delimiter(b';').from_reader(bytes);
+    let mut reader = csv::ReaderBuilder::new()
+        .delimiter(b';')
+        .flexible(true)
+        .from_reader(bytes);
     let keys = reader.headers()?.clone();
     reader
         .records()
         .map(|r| {
+            let record = r?;
+            if record.len() > keys.len() {
+                return Err("CSV row has more fields than its header".into());
+            }
             Ok(keys
                 .iter()
-                .zip(r?.iter())
-                .map(|(k, v)| (k.to_owned(), v.into()))
+                .enumerate()
+                .map(|(i, k)| {
+                    (
+                        k.to_owned(),
+                        record
+                            .get(i)
+                            .map(serde_json::Value::from)
+                            .unwrap_or(serde_json::Value::Null),
+                    )
+                })
                 .collect())
         })
         .collect()
