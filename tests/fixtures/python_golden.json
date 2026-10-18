@@ -1,0 +1,1212 @@
+[
+  {
+    "kind": "read",
+    "name": "short",
+    "input": "a;b\r\n1\r\n",
+    "expected": [
+      {
+        "a": "1",
+        "b": null
+      }
+    ]
+  },
+  {
+    "kind": "read",
+    "name": "bom",
+    "input": "﻿a;b\r\nž;\"x\r\ny\"\r\n",
+    "expected": [
+      {
+        "a": "ž",
+        "b": "x\r\ny"
+      }
+    ]
+  },
+  {
+    "kind": "read",
+    "name": "blank",
+    "input": "a;b\n\n1;2\n",
+    "expected": [
+      {
+        "a": "1",
+        "b": "2"
+      }
+    ]
+  },
+  {
+    "kind": "read",
+    "name": "empty",
+    "input": "",
+    "expected": []
+  },
+  {
+    "kind": "read",
+    "name": "duplicate",
+    "input": "a;a\n1;2\n",
+    "expected": [
+      {
+        "a": "2"
+      }
+    ]
+  },
+  {
+    "kind": "read",
+    "name": "cr",
+    "input": "a;b\r1;2\r",
+    "expected": [
+      {
+        "a": "1",
+        "b": "2"
+      }
+    ]
+  },
+  {
+    "kind": "read",
+    "name": "quote",
+    "input": "a;b\n\"unfinished;z",
+    "expected": [
+      {
+        "a": "unfinished;z",
+        "b": null
+      }
+    ]
+  },
+  {
+    "kind": "write",
+    "name": "empty_map",
+    "input": [
+      {}
+    ],
+    "expected": "﻿\r\n\r\n"
+  },
+  {
+    "kind": "write",
+    "name": "single_empty",
+    "input": [
+      {
+        "x": ""
+      }
+    ],
+    "expected": "﻿x\r\n\"\"\r\n"
+  },
+  {
+    "kind": "write",
+    "name": "unicode",
+    "input": [
+      {
+        "Nazev1": "Žluť; \"x\"\r\ny",
+        "b": true,
+        "n": null
+      }
+    ],
+    "expected": "﻿Nazev1;b;n\r\n\"Žluť; \"\"x\"\"\r\ny\";True;\r\n"
+  },
+  {
+    "kind": "write",
+    "name": "nested",
+    "input": [
+      {
+        "x": [
+          "a",
+          null,
+          true,
+          {
+            "a": 1
+          }
+        ]
+      }
+    ],
+    "expected": "﻿x\r\n['a', None, True, {'a': 1}]\r\n"
+  },
+  {
+    "kind": "write",
+    "name": "floats",
+    "input": [
+      {
+        "a": 1e-07,
+        "b": 0.0001,
+        "c": 1e+16,
+        "d": 1.0,
+        "e": -0.0
+      }
+    ],
+    "expected": "﻿a;b;c;d;e\r\n1e-07;0.0001;1e+16;1.0;-0.0\r\n"
+  },
+  {
+    "kind": "write",
+    "name": "sparse",
+    "input": [
+      {
+        "x": "a"
+      },
+      {
+        "y": "b"
+      }
+    ],
+    "expected": "﻿x;y\r\na;\r\n;b\r\n"
+  },
+  {
+    "kind": "row",
+    "name": "prices",
+    "input": [
+      {
+        "FieldName": "_cena_cu1",
+        "Value": "7,5"
+      },
+      {
+        "FieldName": "Name",
+        "Value": "A,B"
+      }
+    ],
+    "expected": {
+      "_cena_cu1": "7.5",
+      "Name": "A,B"
+    }
+  },
+  {
+    "kind": "row",
+    "name": "missing",
+    "input": [
+      {},
+      {
+        "FieldName": "x"
+      },
+      {
+        "FieldName": "n",
+        "Value": null
+      }
+    ],
+    "expected": {
+      "": "",
+      "x": "",
+      "n": null
+    }
+  },
+  {
+    "kind": "select",
+    "name": "None",
+    "input": [
+      {
+        "ID": "0",
+        "HlavniSkupina": "Straße"
+      },
+      {
+        "ID": "1",
+        "HlavniSkupina": "Straße"
+      },
+      {
+        "ID": "2",
+        "HlavniSkupina": "Straße"
+      }
+    ],
+    "limit": null,
+    "expected": [
+      {
+        "ID": "0",
+        "HlavniSkupina": "Straße"
+      },
+      {
+        "ID": "1",
+        "HlavniSkupina": "Straße"
+      },
+      {
+        "ID": "2",
+        "HlavniSkupina": "Straße"
+      }
+    ]
+  },
+  {
+    "kind": "select",
+    "name": "0",
+    "input": [
+      {
+        "ID": "0",
+        "HlavniSkupina": "Straße"
+      },
+      {
+        "ID": "1",
+        "HlavniSkupina": "Straße"
+      },
+      {
+        "ID": "2",
+        "HlavniSkupina": "Straße"
+      }
+    ],
+    "limit": 0,
+    "expected": [
+      {
+        "ID": "0",
+        "HlavniSkupina": "Straße"
+      },
+      {
+        "ID": "1",
+        "HlavniSkupina": "Straße"
+      },
+      {
+        "ID": "2",
+        "HlavniSkupina": "Straße"
+      }
+    ]
+  },
+  {
+    "kind": "select",
+    "name": "1",
+    "input": [
+      {
+        "ID": "0",
+        "HlavniSkupina": "Straße"
+      },
+      {
+        "ID": "1",
+        "HlavniSkupina": "Straße"
+      },
+      {
+        "ID": "2",
+        "HlavniSkupina": "Straße"
+      }
+    ],
+    "limit": 1,
+    "expected": [
+      {
+        "ID": "0",
+        "HlavniSkupina": "Straße"
+      }
+    ]
+  },
+  {
+    "kind": "select",
+    "name": "-1",
+    "input": [
+      {
+        "ID": "0",
+        "HlavniSkupina": "Straße"
+      },
+      {
+        "ID": "1",
+        "HlavniSkupina": "Straße"
+      },
+      {
+        "ID": "2",
+        "HlavniSkupina": "Straße"
+      }
+    ],
+    "limit": -1,
+    "expected": [
+      {
+        "ID": "0",
+        "HlavniSkupina": "Straße"
+      },
+      {
+        "ID": "1",
+        "HlavniSkupina": "Straße"
+      }
+    ]
+  },
+  {
+    "kind": "select",
+    "name": "-100",
+    "input": [
+      {
+        "ID": "0",
+        "HlavniSkupina": "Straße"
+      },
+      {
+        "ID": "1",
+        "HlavniSkupina": "Straße"
+      },
+      {
+        "ID": "2",
+        "HlavniSkupina": "Straße"
+      }
+    ],
+    "limit": -100,
+    "expected": []
+  },
+  {
+    "kind": "select",
+    "name": "9223372036854775807",
+    "input": [
+      {
+        "ID": "0",
+        "HlavniSkupina": "Straße"
+      },
+      {
+        "ID": "1",
+        "HlavniSkupina": "Straße"
+      },
+      {
+        "ID": "2",
+        "HlavniSkupina": "Straße"
+      }
+    ],
+    "limit": 9223372036854775807,
+    "expected": [
+      {
+        "ID": "0",
+        "HlavniSkupina": "Straße"
+      },
+      {
+        "ID": "1",
+        "HlavniSkupina": "Straße"
+      },
+      {
+        "ID": "2",
+        "HlavniSkupina": "Straße"
+      }
+    ]
+  },
+  {
+    "kind": "select",
+    "name": "-9223372036854775808",
+    "input": [
+      {
+        "ID": "0",
+        "HlavniSkupina": "Straße"
+      },
+      {
+        "ID": "1",
+        "HlavniSkupina": "Straße"
+      },
+      {
+        "ID": "2",
+        "HlavniSkupina": "Straße"
+      }
+    ],
+    "limit": -9223372036854775808,
+    "expected": []
+  },
+  {
+    "kind": "walk",
+    "name": "count 184467440737095516160000000",
+    "input": [
+      {
+        "result": [
+          {
+            "fields": {
+              "IsError": false,
+              "Result": {
+                "table": {
+                  "rows": []
+                }
+              }
+            }
+          }
+        ]
+      },
+      {
+        "result": [
+          {
+            "fields": {
+              "IsError": false,
+              "Result": {
+                "table": {
+                  "rows": []
+                }
+              }
+            }
+          }
+        ]
+      },
+      {
+        "result": [
+          {
+            "fields": {
+              "IsError": false,
+              "Result": {
+                "table": {
+                  "rows": [
+                    [
+                      {
+                        "FieldName": "K1",
+                        "Value": "cut"
+                      },
+                      {
+                        "FieldName": "K1Name",
+                        "Value": ""
+                      },
+                      {
+                        "FieldName": "Pocet",
+                        "Value": "184467440737095516160000000"
+                      }
+                    ]
+                  ]
+                }
+              }
+            }
+          }
+        ]
+      },
+      {
+        "result": [
+          {
+            "fields": {
+              "IsError": false,
+              "Result": {
+                "table": {
+                  "rows": [
+                    [
+                      {
+                        "FieldName": "K2",
+                        "Value": "sub"
+                      },
+                      {
+                        "FieldName": "K2Name",
+                        "Value": "Sub"
+                      }
+                    ]
+                  ]
+                }
+              }
+            }
+          }
+        ]
+      },
+      {
+        "result": [
+          {
+            "fields": {
+              "IsError": false,
+              "Result": {
+                "table": {
+                  "rows": [
+                    [
+                      {
+                        "FieldName": "ID",
+                        "Value": "p"
+                      }
+                    ]
+                  ]
+                }
+              }
+            }
+          }
+        ]
+      }
+    ],
+    "expected": [
+      {
+        "ID": "p",
+        "HlavniSkupina": "Cut",
+        "PodskupinaKod": "cut",
+        "PodskupinaNazev": "Sub"
+      }
+    ],
+    "calls": [
+      [
+        "44465692-619A-41AD-A578-ADB755659D0B",
+        [
+          "200"
+        ]
+      ],
+      [
+        "BC3642D5-D287-4CFE-A3CB-566DA8A126E0",
+        []
+      ],
+      [
+        "44465692-619A-41AD-A578-ADB755659D0B",
+        [
+          "100"
+        ]
+      ],
+      [
+        "7C100193-68DF-4C59-8692-33E421EEBCD3",
+        [
+          "cut"
+        ]
+      ],
+      [
+        "7DCCBAB9-35EA-4310-BC22-B7AC873F9398",
+        [
+          "cut",
+          "sub"
+        ]
+      ]
+    ]
+  },
+  {
+    "kind": "walk",
+    "name": "count ١",
+    "input": [
+      {
+        "result": [
+          {
+            "fields": {
+              "IsError": false,
+              "Result": {
+                "table": {
+                  "rows": []
+                }
+              }
+            }
+          }
+        ]
+      },
+      {
+        "result": [
+          {
+            "fields": {
+              "IsError": false,
+              "Result": {
+                "table": {
+                  "rows": []
+                }
+              }
+            }
+          }
+        ]
+      },
+      {
+        "result": [
+          {
+            "fields": {
+              "IsError": false,
+              "Result": {
+                "table": {
+                  "rows": [
+                    [
+                      {
+                        "FieldName": "K1",
+                        "Value": "cut"
+                      },
+                      {
+                        "FieldName": "K1Name",
+                        "Value": ""
+                      },
+                      {
+                        "FieldName": "Pocet",
+                        "Value": "١"
+                      }
+                    ]
+                  ]
+                }
+              }
+            }
+          }
+        ]
+      },
+      {
+        "result": [
+          {
+            "fields": {
+              "IsError": false,
+              "Result": {
+                "table": {
+                  "rows": [
+                    [
+                      {
+                        "FieldName": "K2",
+                        "Value": "sub"
+                      },
+                      {
+                        "FieldName": "K2Name",
+                        "Value": "Sub"
+                      }
+                    ]
+                  ]
+                }
+              }
+            }
+          }
+        ]
+      },
+      {
+        "result": [
+          {
+            "fields": {
+              "IsError": false,
+              "Result": {
+                "table": {
+                  "rows": [
+                    [
+                      {
+                        "FieldName": "ID",
+                        "Value": "p"
+                      }
+                    ]
+                  ]
+                }
+              }
+            }
+          }
+        ]
+      }
+    ],
+    "expected": [
+      {
+        "ID": "p",
+        "HlavniSkupina": "Cut",
+        "PodskupinaKod": "cut",
+        "PodskupinaNazev": "Sub"
+      }
+    ],
+    "calls": [
+      [
+        "44465692-619A-41AD-A578-ADB755659D0B",
+        [
+          "200"
+        ]
+      ],
+      [
+        "BC3642D5-D287-4CFE-A3CB-566DA8A126E0",
+        []
+      ],
+      [
+        "44465692-619A-41AD-A578-ADB755659D0B",
+        [
+          "100"
+        ]
+      ],
+      [
+        "7C100193-68DF-4C59-8692-33E421EEBCD3",
+        [
+          "cut"
+        ]
+      ],
+      [
+        "7DCCBAB9-35EA-4310-BC22-B7AC873F9398",
+        [
+          "cut",
+          "sub"
+        ]
+      ]
+    ]
+  },
+  {
+    "kind": "walk",
+    "name": "count １",
+    "input": [
+      {
+        "result": [
+          {
+            "fields": {
+              "IsError": false,
+              "Result": {
+                "table": {
+                  "rows": []
+                }
+              }
+            }
+          }
+        ]
+      },
+      {
+        "result": [
+          {
+            "fields": {
+              "IsError": false,
+              "Result": {
+                "table": {
+                  "rows": []
+                }
+              }
+            }
+          }
+        ]
+      },
+      {
+        "result": [
+          {
+            "fields": {
+              "IsError": false,
+              "Result": {
+                "table": {
+                  "rows": [
+                    [
+                      {
+                        "FieldName": "K1",
+                        "Value": 42
+                      },
+                      {
+                        "FieldName": "K1Name",
+                        "Value": 0
+                      },
+                      {
+                        "FieldName": "Pocet",
+                        "Value": "１"
+                      }
+                    ]
+                  ]
+                }
+              }
+            }
+          }
+        ]
+      },
+      {
+        "result": [
+          {
+            "fields": {
+              "IsError": false,
+              "Result": {
+                "table": {
+                  "rows": [
+                    [
+                      {
+                        "FieldName": "K2",
+                        "Value": 7
+                      },
+                      {
+                        "FieldName": "K2Name",
+                        "Value": 0
+                      }
+                    ]
+                  ]
+                }
+              }
+            }
+          }
+        ]
+      },
+      {
+        "result": [
+          {
+            "fields": {
+              "IsError": false,
+              "Result": {
+                "table": {
+                  "rows": [
+                    [
+                      {
+                        "FieldName": "ID",
+                        "Value": "p"
+                      }
+                    ]
+                  ]
+                }
+              }
+            }
+          }
+        ]
+      }
+    ],
+    "expected": [
+      {
+        "ID": "p",
+        "HlavniSkupina": "Cut",
+        "PodskupinaKod": 42,
+        "PodskupinaNazev": 0
+      }
+    ],
+    "calls": [
+      [
+        "44465692-619A-41AD-A578-ADB755659D0B",
+        [
+          "200"
+        ]
+      ],
+      [
+        "BC3642D5-D287-4CFE-A3CB-566DA8A126E0",
+        []
+      ],
+      [
+        "44465692-619A-41AD-A578-ADB755659D0B",
+        [
+          "100"
+        ]
+      ],
+      [
+        "7C100193-68DF-4C59-8692-33E421EEBCD3",
+        [
+          42
+        ]
+      ],
+      [
+        "7DCCBAB9-35EA-4310-BC22-B7AC873F9398",
+        [
+          42,
+          7
+        ]
+      ]
+    ]
+  },
+  {
+    "kind": "walk",
+    "name": "count 0",
+    "input": [
+      {
+        "result": [
+          {
+            "fields": {
+              "IsError": false,
+              "Result": {
+                "table": {
+                  "rows": []
+                }
+              }
+            }
+          }
+        ]
+      },
+      {
+        "result": [
+          {
+            "fields": {
+              "IsError": false,
+              "Result": {
+                "table": {
+                  "rows": []
+                }
+              }
+            }
+          }
+        ]
+      },
+      {
+        "result": [
+          {
+            "fields": {
+              "IsError": false,
+              "Result": {
+                "table": {
+                  "rows": [
+                    [
+                      {
+                        "FieldName": "K1",
+                        "Value": "cut"
+                      },
+                      {
+                        "FieldName": "K1Name",
+                        "Value": ""
+                      },
+                      {
+                        "FieldName": "Pocet",
+                        "Value": "0"
+                      }
+                    ]
+                  ]
+                }
+              }
+            }
+          }
+        ]
+      }
+    ],
+    "expected": [],
+    "calls": [
+      [
+        "44465692-619A-41AD-A578-ADB755659D0B",
+        [
+          "200"
+        ]
+      ],
+      [
+        "BC3642D5-D287-4CFE-A3CB-566DA8A126E0",
+        []
+      ],
+      [
+        "44465692-619A-41AD-A578-ADB755659D0B",
+        [
+          "100"
+        ]
+      ]
+    ]
+  },
+  {
+    "kind": "walk",
+    "name": "count -1",
+    "input": [
+      {
+        "result": [
+          {
+            "fields": {
+              "IsError": false,
+              "Result": {
+                "table": {
+                  "rows": []
+                }
+              }
+            }
+          }
+        ]
+      },
+      {
+        "result": [
+          {
+            "fields": {
+              "IsError": false,
+              "Result": {
+                "table": {
+                  "rows": []
+                }
+              }
+            }
+          }
+        ]
+      },
+      {
+        "result": [
+          {
+            "fields": {
+              "IsError": false,
+              "Result": {
+                "table": {
+                  "rows": [
+                    [
+                      {
+                        "FieldName": "K1",
+                        "Value": "cut"
+                      },
+                      {
+                        "FieldName": "K1Name",
+                        "Value": ""
+                      },
+                      {
+                        "FieldName": "Pocet",
+                        "Value": "-1"
+                      }
+                    ]
+                  ]
+                }
+              }
+            }
+          }
+        ]
+      }
+    ],
+    "expected": [],
+    "calls": [
+      [
+        "44465692-619A-41AD-A578-ADB755659D0B",
+        [
+          "200"
+        ]
+      ],
+      [
+        "BC3642D5-D287-4CFE-A3CB-566DA8A126E0",
+        []
+      ],
+      [
+        "44465692-619A-41AD-A578-ADB755659D0B",
+        [
+          "100"
+        ]
+      ]
+    ]
+  },
+  {
+    "kind": "walk",
+    "name": "count ",
+    "input": [
+      {
+        "result": [
+          {
+            "fields": {
+              "IsError": false,
+              "Result": {
+                "table": {
+                  "rows": []
+                }
+              }
+            }
+          }
+        ]
+      },
+      {
+        "result": [
+          {
+            "fields": {
+              "IsError": false,
+              "Result": {
+                "table": {
+                  "rows": []
+                }
+              }
+            }
+          }
+        ]
+      },
+      {
+        "result": [
+          {
+            "fields": {
+              "IsError": false,
+              "Result": {
+                "table": {
+                  "rows": [
+                    [
+                      {
+                        "FieldName": "K1",
+                        "Value": "cut"
+                      },
+                      {
+                        "FieldName": "K1Name",
+                        "Value": ""
+                      },
+                      {
+                        "FieldName": "Pocet",
+                        "Value": ""
+                      }
+                    ]
+                  ]
+                }
+              }
+            }
+          }
+        ]
+      }
+    ],
+    "expected": [],
+    "calls": [
+      [
+        "44465692-619A-41AD-A578-ADB755659D0B",
+        [
+          "200"
+        ]
+      ],
+      [
+        "BC3642D5-D287-4CFE-A3CB-566DA8A126E0",
+        []
+      ],
+      [
+        "44465692-619A-41AD-A578-ADB755659D0B",
+        [
+          "100"
+        ]
+      ]
+    ]
+  },
+  {
+    "kind": "walk",
+    "name": "typed main group and subgroup",
+    "input": [
+      {
+        "result": [
+          {
+            "fields": {
+              "IsError": false,
+              "Result": {
+                "table": {
+                  "rows": [
+                    [
+                      {
+                        "FieldName": "K1",
+                        "Value": 42
+                      },
+                      {
+                        "FieldName": "Pocet",
+                        "Value": 1
+                      }
+                    ]
+                  ]
+                }
+              }
+            }
+          }
+        ]
+      },
+      {
+        "result": [
+          {
+            "fields": {
+              "IsError": false,
+              "Result": {
+                "table": {
+                  "rows": [
+                    [
+                      {
+                        "Value": "unused"
+                      },
+                      {
+                        "Value": 7
+                      },
+                      {
+                        "Value": null
+                      }
+                    ]
+                  ]
+                }
+              }
+            }
+          }
+        ]
+      },
+      {
+        "result": [
+          {
+            "fields": {
+              "IsError": false,
+              "Result": {
+                "table": {
+                  "rows": [
+                    [
+                      {
+                        "FieldName": "ID",
+                        "Value": "typed"
+                      }
+                    ]
+                  ]
+                }
+              }
+            }
+          }
+        ]
+      },
+      {
+        "result": [
+          {
+            "fields": {
+              "IsError": false,
+              "Result": {
+                "table": {
+                  "rows": []
+                }
+              }
+            }
+          }
+        ]
+      },
+      {
+        "result": [
+          {
+            "fields": {
+              "IsError": false,
+              "Result": {
+                "table": {
+                  "rows": []
+                }
+              }
+            }
+          }
+        ]
+      }
+    ],
+    "expected": [
+      {
+        "ID": "typed",
+        "HlavniSkupina": 42,
+        "PodskupinaKod": 7,
+        "PodskupinaNazev": null
+      }
+    ],
+    "calls": [
+      [
+        "44465692-619A-41AD-A578-ADB755659D0B",
+        [
+          "200"
+        ]
+      ],
+      [
+        "7C100193-68DF-4C59-8692-33E421EEBCD3",
+        [
+          42
+        ]
+      ],
+      [
+        "7DCCBAB9-35EA-4310-BC22-B7AC873F9398",
+        [
+          42,
+          7
+        ]
+      ],
+      [
+        "BC3642D5-D287-4CFE-A3CB-566DA8A126E0",
+        []
+      ],
+      [
+        "44465692-619A-41AD-A578-ADB755659D0B",
+        [
+          "100"
+        ]
+      ]
+    ]
+  }
+]
