@@ -57,8 +57,20 @@ pub struct Scraper<'a, R: Rpc> {
     pub log: &'a Logger,
 }
 impl<R: Rpc> Scraper<'_, R> {
+    /// An action that got no answer at all (timeout, dropped connection, bad body)
+    /// fails the export; carrying on would write a catalogue with holes in it.
+    fn act(&mut self, id: &str, params: Value) -> Result<Value> {
+        let v = self.rpc.action(id, params)?;
+        if v.is_null() {
+            return Err(format!(
+                "No response from the server for action {id}; export is incomplete"
+            )
+            .into());
+        }
+        Ok(v)
+    }
     fn categories(&mut self, series: &str) -> Result<Vec<Product>> {
-        let v = self.rpc.action(CATEGORIES, json!([series]))?;
+        let v = self.act(CATEGORIES, json!([series]))?;
         if !success(&v) {
             self.log.log(
                 "WARNING",
@@ -74,7 +86,7 @@ impl<R: Rpc> Scraper<'_, R> {
             .collect())
     }
     fn products(&mut self, cat: &Value, sub: &Value) -> Result<Vec<Product>> {
-        Ok(rows(&self.rpc.action(PRODUCTS, json!([cat, sub]))?))
+        Ok(rows(&self.act(PRODUCTS, json!([cat, sub]))?))
     }
     pub fn browse(&mut self) -> Result<Vec<Product>> {
         self.log
@@ -128,7 +140,7 @@ impl<R: Rpc> Scraper<'_, R> {
                 "INFO",
                 format!("  Fetching subgroups for '{}'", text(&group)),
             );
-            let v = self.rpc.action(SUBGROUPS, json!([group]))?;
+            let v = self.act(SUBGROUPS, json!([group]))?;
             if !success(&v) {
                 self.log.log(
                     "WARNING",
@@ -183,7 +195,7 @@ impl<R: Rpc> Scraper<'_, R> {
         }
         self.log
             .log("INFO", "Fetching extra products from browse metadata...");
-        let v = self.rpc.action(METADATA, json!([]))?;
+        let v = self.act(METADATA, json!([]))?;
         if success(&v) {
             let mut extra = rows(&v);
             for p in &mut extra {
@@ -218,7 +230,7 @@ impl<R: Rpc> Scraper<'_, R> {
                         text(&name)
                     ),
                 );
-                let v = self.rpc.action(SUBGROUPS, json!([code]))?;
+                let v = self.act(SUBGROUPS, json!([code]))?;
                 let mut got = vec![];
                 if success(&v) {
                     for sub in rows(&v) {

@@ -326,3 +326,40 @@ fn malformed_envelopes_do_not_panic() {
         let _ = row_to_dict(&value);
     }
 }
+
+#[test]
+fn an_unanswered_action_fails_the_export() {
+    use tulipa_app_scraper::client::Rpc;
+    struct Silent(usize);
+    impl Rpc for Silent {
+        fn activate(&mut self) -> Result<()> {
+            Ok(())
+        }
+        fn browse(&mut self, _: Option<&str>) -> Result<Value> {
+            Ok(Value::Null)
+        }
+        fn action(&mut self, _: &str, _: Value) -> Result<Value> {
+            self.0 += 1;
+            // The category list answers; every later action gets no response.
+            Ok(if self.0 == 1 {
+                json!({"result":[{"fields":{"IsError":false,"Result":{"table":{"rows":[[
+                    {"FieldName":"K1","Value":"cut"},{"FieldName":"Pocet","Value":1}]]}}}}]})
+            } else {
+                Value::Null
+            })
+        }
+    }
+    let settings = Settings {
+        main_groups: vec![],
+        category_series: vec![],
+        ..Settings::default()
+    };
+    let error = tulipa_app_scraper::scraper::Scraper {
+        rpc: &mut Silent(0),
+        settings: &settings,
+        log: &Logger { level: 3 },
+    }
+    .actions()
+    .unwrap_err();
+    assert!(error.to_string().contains("No response"), "{error}");
+}
