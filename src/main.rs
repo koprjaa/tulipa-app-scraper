@@ -221,15 +221,16 @@ fn execute(args: &Args, s: &Settings, log: &Logger) -> Result<i32> {
         );
         std::process::exit(if repeating { 0 } else { 1 });
     })?;
+    // The flag says the workflow raised an error (as opposed to finishing with a failing code).
     let run = |client: &mut HeliosClient| match run_once(args, client, s, log) {
-        Ok(n) => n,
+        Ok(n) => (n, false),
         Err(e) => {
             log.log("ERROR", format!("Workflow failed: {e}"));
-            1
+            (1, true)
         }
     };
     if !args.repeat {
-        return Ok(run(&mut client));
+        return Ok(run(&mut client).0);
     }
     log.log(
         "INFO",
@@ -247,7 +248,8 @@ fn execute(args: &Args, s: &Settings, log: &Logger) -> Result<i32> {
                 chrono::Local::now().format("%Y-%m-%d %H:%M:%S")
             ),
         );
-        let rc = run(&mut client);
+        let (rc, errored) = run(&mut client);
+        let wait = s.loop_wait(errored);
         log.log(
             if rc == 0 { "INFO" } else { "WARNING" },
             format!("Iteration #{iteration} finished (exit {rc})"),
@@ -255,12 +257,9 @@ fn execute(args: &Args, s: &Settings, log: &Logger) -> Result<i32> {
         iteration = iteration.saturating_add(1);
         log.log(
             "INFO",
-            format!(
-                "Sleeping {} min before next iteration",
-                s.loop_interval_seconds / 60
-            ),
+            format!("Sleeping {} min before next iteration", wait / 60),
         );
-        for _ in 0..s.loop_interval_seconds {
+        for _ in 0..wait {
             for _ in 0..10 {
                 if stopped.load(Ordering::SeqCst) {
                     break;

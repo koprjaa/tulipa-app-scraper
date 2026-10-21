@@ -486,3 +486,27 @@ fn nested_field_values_and_browse_diagnostics_preserve_python_notation() {
     assert_eq!(text(&json!([1, "x"])), "[1, 'x']");
     assert!(select_products(vec![Product::new()], Some("missing"), None).is_empty());
 }
+#[test]
+fn a_failed_csv_write_keeps_the_previous_file() {
+    let d = tempfile::tempdir().unwrap();
+    let f = d.path().join("out.csv");
+    fs::write(&f, "old").unwrap();
+    // The sibling the new file is built in cannot be created.
+    fs::create_dir(d.path().join("out.csv.part")).unwrap();
+    assert!(!write_csv(&[p(json!({"ID":"1"}))], &f, &log()));
+    assert_eq!(fs::read_to_string(&f).unwrap(), "old");
+    fs::remove_dir(d.path().join("out.csv.part")).unwrap();
+    assert!(write_csv(&[p(json!({"ID":"1"}))], &f, &log()));
+    assert!(!d.path().join("out.csv.part").exists());
+}
+#[test]
+fn trailing_slash_in_base_url_and_error_retry_wait() {
+    let s = Settings {
+        base_url: "https://host/".into(),
+        endpoint: "/api".into(),
+        ..Settings::default()
+    };
+    assert_eq!(s.full_url(), "https://host/api");
+    assert_eq!(s.loop_wait(false), 1800);
+    assert_eq!(s.loop_wait(true), 300);
+}

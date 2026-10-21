@@ -65,7 +65,15 @@ impl Default for Settings {
 }
 impl Settings {
     pub fn full_url(&self) -> String {
-        format!("{}{}", self.base_url, self.endpoint)
+        format!("{}{}", self.base_url.trim_end_matches('/'), self.endpoint)
+    }
+    /// Seconds to sleep between loop iterations; a failed one is retried sooner.
+    pub fn loop_wait(&self, errored: bool) -> u64 {
+        if errored {
+            self.loop_error_wait_seconds
+        } else {
+            self.loop_interval_seconds
+        }
     }
     pub fn from_env() -> Self {
         let _ = dotenvy::dotenv();

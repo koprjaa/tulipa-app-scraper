@@ -100,12 +100,18 @@ pub fn write_csv(products: &[Product], path: &Path, log: &Logger) -> bool {
         if let Some(p) = path.parent().filter(|p| !p.as_os_str().is_empty()) {
             fs::create_dir_all(p)?;
         }
-        let mut file = fs::File::create(path)?;
+        // Written beside the target and renamed, so an interrupted run leaves the old file intact.
+        let mut partial = path.as_os_str().to_owned();
+        partial.push(".part");
+        let partial = PathBuf::from(partial);
+        let mut file = fs::File::create(&partial)?;
         file.write_all(b"\xef\xbb\xbf")?;
         if fields.is_empty() {
             for _ in 0..=products.len() {
                 file.write_all(b"\r\n")?;
             }
+            drop(file);
+            fs::rename(&partial, path)?;
             return Ok(());
         }
         let mut w = csv::WriterBuilder::new()
@@ -121,6 +127,8 @@ pub fn write_csv(products: &[Product], path: &Path, log: &Logger) -> bool {
             )?;
         }
         w.flush()?;
+        drop(w);
+        fs::rename(&partial, path)?;
         Ok(())
     };
     match run() {
