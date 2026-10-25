@@ -3,7 +3,7 @@ name = "tulipa-app-scraper"
 version = "0.2.0"
 edition = "2021"
 authors = ["Jan Alexandr Kopřiva"]
-license = "MIT"
+license = "AGPL-3.0-or-later"
 description = "Exports product and stock data from the Tulipa B2B florist portal."
 repository = "https://github.com/koprjaa/tulipa-app-scraper"
 

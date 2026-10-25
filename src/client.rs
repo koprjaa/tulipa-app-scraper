@@ -2,7 +2,7 @@
 // File: client.rs
 // Description: Sequential verified HTTP transport and session lifecycle.
 // Author: Jan Alexandr Kopřiva
-// License: MIT
+// License: AGPL-3.0-or-later
 use crate::{truth, Logger, Result, Settings};
 use chrono::{Duration, Local, NaiveDateTime};
 use serde_json::{json, Value};

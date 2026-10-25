@@ -2,7 +2,7 @@
 // File: storage.rs
 // Description: Dated cache and byte-compatible CSV storage.
 // Author: Jan Alexandr Kopřiva
-// License: MIT
+// License: AGPL-3.0-or-later
 use crate::{text, Logger, Product, Result};
 use chrono::Local;
 use std::{

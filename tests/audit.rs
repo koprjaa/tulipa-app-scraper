@@ -2,7 +2,7 @@
 // File: audit.rs
 // Description: Differential fixtures captured from the original Python implementation.
 // Author: Jan Alexandr Kopřiva
-// License: MIT
+// License: AGPL-3.0-or-later
 use serde_json::{json, Value};
 use std::fs;
 use tulipa_app_scraper::{scraper::row_to_dict, storage::*, *};

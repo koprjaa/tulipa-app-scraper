@@ -2,7 +2,7 @@
 # File: ci.yml
 # Description: Cross-platform Rust formatting, lint, test and release checks.
 # Author: Jan Alexandr Kopřiva
-# License: MIT
+# License: AGPL-3.0-or-later
 name: Rust CI
 on: [push, pull_request]
 jobs:

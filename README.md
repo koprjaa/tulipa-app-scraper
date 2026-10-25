@@ -3,7 +3,7 @@
 Exports product and stock data from the Tulipa B2B florist portal.
 
 [![CI](https://github.com/koprjaa/tulipa-app-scraper/actions/workflows/ci.yml/badge.svg)](https://github.com/koprjaa/tulipa-app-scraper/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
 
 ## Install
 
@@ -45,4 +45,4 @@ Sessions are saved in `data/tulipa_session.json`. Use `--reset` to log out and r
 
 ## License
 
-[MIT](LICENSE)
+[AGPL-3.0-or-later](LICENSE)

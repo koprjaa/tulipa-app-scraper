@@ -2,7 +2,7 @@
 // File: scraper.rs
 // Description: Product traversal and portal discovery.
 // Author: Jan Alexandr Kopřiva
-// License: MIT
+// License: AGPL-3.0-or-later
 use crate::{
     client::{fields, success, Rpc},
     *,

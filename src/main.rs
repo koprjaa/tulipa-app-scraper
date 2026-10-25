@@ -2,7 +2,7 @@
 // File: main.rs
 // Description: Command line modes and repeating export workflow.
 // Author: Jan Alexandr Kopřiva
-// License: MIT
+// License: AGPL-3.0-or-later
 use clap::Parser;
 use std::{
     path::PathBuf,
